@@ -1,0 +1,8 @@
+pdoc3
+twine
+pytest
+
+pyrepresent
+numpy
+opencv-python
+moviepy
