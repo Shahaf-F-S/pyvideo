@@ -3,6 +3,8 @@ twine
 pytest
 
 pyrepresent
+attrs
 numpy
 opencv-python
 moviepy
+tqdm

@@ -1,15 +1,16 @@
 # video.py
 
 from typing import (
-    Optional, List, Union, Tuple, Self, Generator, Iterable
+    Optional, List, Union, Tuple, Generator, Iterable, Any
 )
 from pathlib import Path
 
-from attrs import define
+from attrs import define, field
 
 import numpy as np
 import cv2
 from tqdm import tqdm
+from moviepy.editor import ImageSequenceClip
 
 __all__ = [
     "Video"
@@ -22,21 +23,19 @@ class Video:
     fps: float
     width: int
     height: int
+    length: int
 
-    frames: List[np.ndarray]
     source: Optional[Union[str, Path]] = None
     destination: Optional[Union[str, Path]] = None
 
-    @property
-    def length(self) -> int:
-        """
-        Returns the amount of frames in the video.
+    frames: Optional[List[np.ndarray]] = field(factory=list)
 
-        :return: The int amount of frames.
-        """
+    try:
+        from typing import Self
 
-        return len(self.frames)
-    # end length
+    except ImportError:
+        Self = Any
+    # end try
 
     @property
     def duration(self) -> float:
@@ -60,16 +59,102 @@ class Video:
         return self.width, self.height
     # end size
 
+    @property
+    def aspect_ratio(self) -> float:
+        """
+        Returns the aspect ratio each frame in the video.
+
+        :return: The aspect ratio.
+        """
+
+        return self.width / self.height
+    # end size
+
+    def cut(
+            self,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None,
+            inplace: Optional[bool] = False
+    ) -> Self:
+        """
+        Cuts the video.
+
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        video.frames[:] = video.frames[start:end:step]
+        video.length = len(video.frames)
+
+        return video
+    # end cut
+
+    def resize(self, size: Tuple[int, int], inplace: Optional[bool] = False) -> Self:
+        """
+        Resizes the frames in the video.
+
+        :param size: The new size of the frames.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        video.frames[:] = [cv2.resize(frame, size) for frame in video.frames]
+        video.length = len(video.frames)
+
+        return video
+    # end resize
+
+    def rescale(self, factor: float, inplace: Optional[bool] = False) -> Self:
+        """
+        Resizes the frames in the video.
+
+        :param factor: The new size of the frames.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        size = (int(self.width * factor), int(self.height * factor))
+
+        return self.resize(size=size, inplace=inplace)
+    # end rescale
+
     def load_frames_generator(
             self,
             path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None
-    ) -> Generator[np.ndarray, None, None]:
+            silent: Optional[bool] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
         """
         Loads the data from the file.
 
         :param path: The path to the source file.
         :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
 
         :return: The loaded file data.
         """
@@ -82,13 +167,11 @@ class Video:
 
         path = str(path)
 
-        cap = cv2.VideoCapture(path)
+        start = start or 0
+        end = end or self.length
+        step = step or 1
 
-        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        retrieve = True
-
-        iterations = range(length)
+        iterations = range(start, end, step)
 
         iterations = tqdm(
             iterations,
@@ -97,75 +180,80 @@ class Video:
                 "[{remaining}s, {rate_fmt}{postfix}]"
             ),
             desc=f"Loading video frames from {Path(path)}",
-            total=length
+            total=len(iterations)
         ) if not silent else iterations
 
-        new_source = (
-            (self.source is not None) and
-            (path is not None) and
-            (self.source != path)
-        )
+        cap = cv2.VideoCapture(path)
 
-        if new_source:
-            self.frames.clear()
+        if start != 0:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
         # end if
 
-        if (
-            (len(self.frames) > 0) and
-            not new_source
-        ):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, len(self.frames))
-
-            iterations -= len(self.frames)
-        # end if
-
-        for _ in iterations:
-            if not (cap.isOpened() and retrieve):
+        for i in iterations:
+            if i == end:
                 break
             # end if
 
-            retrieve, frame = cap.read()
+            if step != 1:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            # end if
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            _, frame = cap.read()
 
-            self.frames.append(frame)
-
-            yield frame
+            yield cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # end for
+
+        cap.release()
     # end load_frames_generator
 
     def load_frames(
             self,
             path: Union[str, Path],
-            silent: Optional[bool] = None
+            silent: Optional[bool] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
     ) -> None:
         """
         Loads the data from the file.
 
         :param path: The path to the source file.
         :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
         """
 
-        for _ in self.load_frames_generator(path=path, silent=silent):
-            pass
+        for video_frame in self.load_frames_generator(
+            path=path, silent=silent, start=start, end=end, step=step
+        ):
+            self.frames.append(video_frame)
         # end for
+
+        self.length = len(self.frames)
     # end load_frames
 
     @classmethod
     def load(
             cls,
             path: Union[str, Path],
+            destination: Optional[Union[str, Path]] = None,
             silent: Optional[bool] = False,
             frames: Optional[Iterable[np.ndarray]] = None,
-            load_frames: Optional[bool] = True
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
     ) -> Self:
         """
         Loads the data from the file.
 
         :param path: The path to the source file.
+        :param destination: The destination to set for the video object.
         :param silent: The value for no output.
         :param frames: The frames to insert to the video data object.
-        :param load_frames: The value to load_frames the frames.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
 
         :return: The loaded file data.
         """
@@ -177,6 +265,7 @@ class Video:
         fps = float(cap.get(cv2.CAP_PROP_FPS))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         if frames is None:
             frames = []
@@ -185,29 +274,33 @@ class Video:
         frames = list(frames)
 
         data = cls(
-            frames=frames,
-            fps=fps,
-            width=width,
-            height=height
+            frames=frames, length=length,
+            fps=fps, width=width, height=height,
+            source=path, destination=destination
         )
 
-        if load_frames:
-            data.load_frames(path=path, silent=silent)
-        # end if
+        data.load_frames(
+            path=path, silent=silent,
+            start=start, end=end, step=step
+        )
 
         return data
     # end load
 
-    def save_frames_generator(
+    def save_frames(
             self,
             path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None
-    ) -> Generator[np.ndarray, None, None]:
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> None:
         """
         Saves the video and audio into the file.
 
         :param path: The saving path.
-        :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
         """
 
         path = path or self.destination
@@ -218,79 +311,41 @@ class Video:
 
         path = str(path)
 
-        length = len(self.frames)
+        video_frames = self.frames[start:end:step]
 
-        iterations = range(length)
+        clip = ImageSequenceClip(video_frames, fps=self.fps)
 
-        iterations = tqdm(
-            iterations,
-            bar_format=(
-                "{l_bar}{bar}| {n_fmt}/{total_fmt} "
-                "[{remaining}s, {rate_fmt}{postfix}]"
-            ),
-            desc=f"Saving video data to {Path(path)}",
-            total=length
-        ) if not silent else iterations
-
-        if not silent:
-            print()
-        # end if
-
-        result = cv2.VideoWriter(path, -1, self.fps, self.size)
-
-        if not silent:
-            print()
-        # end if
-
-        for i in iterations:
-            result.write(self.frames[i])
-
-            yield self.frames[i]
-        # end for
-
-        result.release()
+        clip.write_videofile(path, fps=self.fps, verbose=False, logger=None)
+        clip.close()
     # end save
-
-    def save_frames(
-            self,
-            path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None
-    ) -> None:
-        """
-        Saves the video and audio into the file.
-
-        :param path: The saving path.
-        :param silent: The value for no output.
-        """
-
-        for _ in self.save_frames_generator(path=path, silent=silent):
-            pass
-        # end for
-    # end save_frames
 
     def save(
             self,
             path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
     ) -> None:
         """
         Saves the video and audio into the file.
 
         :param path: The saving path.
-        :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
         """
 
-        self.save_frames(path=path, silent=silent)
+        self.save_frames(path=path, start=start, end=end, step=step)
     # end save
 
     def copy(self) -> Self:
         """Creates a copy of the data."""
 
         return Video(
-            frames=self.frames,
-            fps=self.fps,
-            width=self.width,
-            height=self.height
+            frames=self.frames.copy(),
+            fps=self.fps, width=self.width, height=self.height,
+            source=self.source, destination=self.destination,
+            length=self.length
         )
     # end copy
 # end Video
