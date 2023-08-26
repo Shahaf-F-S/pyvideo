@@ -238,7 +238,7 @@ class Video:
             cls,
             path: Union[str, Path],
             destination: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = False,
+            silent: Optional[bool] = None,
             frames: Optional[Iterable[np.ndarray]] = None,
             start: Optional[int] = None,
             end: Optional[int] = None,
