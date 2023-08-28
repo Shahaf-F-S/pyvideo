@@ -1,7 +1,8 @@
 # video.py
 
 from typing import (
-    Optional, List, Union, Tuple, Generator, Iterable, Any
+    Optional, List, Union, Tuple,
+    Generator, Iterable, Any, ClassVar
 )
 from pathlib import Path
 
@@ -21,14 +22,18 @@ class Video:
     """A class to contain video metadata."""
 
     fps: float
-    width: int
-    height: int
-    length: int
+
+    width: Optional[int] = None
+    height: Optional[int] = None
 
     source: Optional[Union[str, Path]] = None
     destination: Optional[Union[str, Path]] = None
 
+    silent: Optional[bool] = True
+
     frames: Optional[List[np.ndarray]] = field(factory=list)
+
+    SILENT: ClassVar[bool] = True
 
     try:
         from typing import Self
@@ -36,6 +41,39 @@ class Video:
     except ImportError:
         Self = Any
     # end try
+
+    def __attrs_post_init__(self) -> None:
+        """Defines the attributes of the class."""
+
+        if self.silent is None:
+            self.silent = self.SILENT
+        # end if
+
+        if self.frames is None:
+            self.frames = []
+        # end if
+
+        if self.frames:
+            if self.width is None:
+                self.width = self.frames[0].shape[1]
+            # end if
+
+            if self.height is None:
+                self.height = self.frames[0].shape[0]
+            # end if
+        # end if
+    # end __attrs_post_init__
+
+    @property
+    def length(self) -> float:
+        """
+        Returns the amount of frames in the video.
+
+        :return: The int amount of frames.
+        """
+
+        return len(self.frames)
+    # end length
 
     @property
     def duration(self) -> float:
@@ -95,11 +133,26 @@ class Video:
             video = self.copy()
         # end if
 
+        start = start or 0
+        end = end or self.length
+        step = step or 1
+
         video.frames[:] = video.frames[start:end:step]
-        video.length = len(video.frames)
 
         return video
     # end cut
+
+    def fit(self, inplace: Optional[bool] = False) -> Self:
+        """
+        Resizes the frames in the video.
+
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        return self.resize(size=(self.width, self.height), inplace=inplace)
+    # end fit
 
     def resize(self, size: Tuple[int, int], inplace: Optional[bool] = False) -> Self:
         """
@@ -119,7 +172,8 @@ class Video:
         # end if
 
         video.frames[:] = [cv2.resize(frame, size) for frame in video.frames]
-        video.length = len(video.frames)
+        video.width = size[0]
+        video.height = size[1]
 
         return video
     # end resize
@@ -158,6 +212,10 @@ class Video:
 
         :return: The loaded file data.
         """
+
+        if silent is None:
+            silent = self.silent
+        # end if
 
         path = path or self.source
 
@@ -229,8 +287,6 @@ class Video:
         ):
             self.frames.append(video_frame)
         # end for
-
-        self.length = len(self.frames)
     # end load_frames
 
     @classmethod
@@ -274,14 +330,14 @@ class Video:
         frames = list(frames)
 
         data = cls(
-            frames=frames, length=length,
+            frames=frames,
             fps=fps, width=width, height=height,
             source=path, destination=destination
         )
 
         data.load_frames(
             path=path, silent=silent,
-            start=start, end=end, step=step
+            start=start, end=end or length, step=step
         )
 
         return data
@@ -310,6 +366,10 @@ class Video:
         # end if
 
         path = str(path)
+
+        start = start or 0
+        end = end or self.length
+        step = step or 1
 
         video_frames = self.frames[start:end:step]
 
@@ -345,7 +405,7 @@ class Video:
             frames=self.frames.copy(),
             fps=self.fps, width=self.width, height=self.height,
             source=self.source, destination=self.destination,
-            length=self.length
+            silent=self.silent
         )
     # end copy
 # end Video
