@@ -200,7 +200,7 @@ class Video:
             start: Optional[int] = None,
             end: Optional[int] = None,
             step: Optional[int] = None
-    ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    ) -> Generator[np.ndarray, None, None]:
         """
         Loads the data from the file.
 
@@ -282,11 +282,11 @@ class Video:
         :param step: The step for the frames.
         """
 
-        for video_frame in self.load_frames_generator(
-            path=path, silent=silent, start=start, end=end, step=step
-        ):
-            self.frames.append(video_frame)
-        # end for
+        self.frames.extend(
+            self.load_frames_generator(
+                path=path, silent=silent, start=start, end=end, step=step
+            )
+        )
     # end load_frames
 
     @classmethod
