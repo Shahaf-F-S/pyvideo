@@ -11,15 +11,17 @@ from attrs import define, field
 import numpy as np
 import cv2
 from tqdm import tqdm
-from moviepy.editor import ImageSequenceClip
+from moviepy.editor import ImageSequenceClip, AudioFileClip
 
 __all__ = [
     "Video"
 ]
 
-@define(hash=True)
+@define(hash=True, slots=False)
 class Video:
     """A class to contain video metadata."""
+
+    # __slots__ = ('fps', 'width', 'height', 'source', '')
 
     fps: float
 
@@ -32,6 +34,7 @@ class Video:
     silent: Optional[bool] = True
 
     frames: Optional[List[np.ndarray]] = field(factory=list)
+    audio: Optional[List[np.ndarray]] = field(factory=list)
 
     SILENT: ClassVar[bool] = True
 
@@ -62,6 +65,8 @@ class Video:
                 self.height = self.frames[0].shape[0]
             # end if
         # end if
+
+        self._audio: Optional[AudioFileClip] = None
     # end __attrs_post_init__
 
     @property
@@ -202,7 +207,7 @@ class Video:
             step: Optional[int] = None
     ) -> Generator[np.ndarray, None, None]:
         """
-        Loads the data from the file.
+        Loads the frames data from the file.
 
         :param path: The path to the source file.
         :param silent: The value for no output.
@@ -264,6 +269,104 @@ class Video:
         cap.release()
     # end load_frames_generator
 
+    def load_audio_generator(
+            self,
+            path: Optional[Union[str, Path]] = None,
+            silent: Optional[bool] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> Generator[np.ndarray, None, None]:
+        """
+        Loads the audio data from the file.
+
+        :param path: The path to the source file.
+        :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+
+        :return: The loaded file data.
+        """
+
+        if silent is None:
+            silent = self.silent
+        # end if
+
+        path = path or self.source
+
+        if path is None:
+            raise ValueError("No path specified.")
+        # end if
+
+        path = str(path)
+
+        start = start or 0
+        end = end or self.length
+        step = step or 1
+
+        iterations = range(start, end, step)
+
+        iterations = tqdm(
+            iterations,
+            bar_format=(
+                "{l_bar}{bar}| {n_fmt}/{total_fmt} "
+                "[{remaining}s, {rate_fmt}{postfix}]"
+            ),
+            desc=f"Loading video audio from {Path(path)}",
+            total=len(iterations)
+        ) if not silent else iterations
+
+        # noinspection PyAttributeOutsideInit
+        self._audio = AudioFileClip(path)
+
+        values = np.arange(0, end, 1.0 / self.fps)
+
+        frames = []
+
+        def make_frame(t: Union[float, np.ndarray]) -> Union[np.ndarray, Iterable[np.ndarray]]:
+            """
+            Returns the frame or frames of audio for the given time.
+
+            :param t: The time of the audio.
+
+            :return: The frame or frames of audio.
+            """
+
+            _frames = np.array(frames)
+
+            if isinstance(t, np.ndarray):
+                array_indexes = (self.fps*t).astype(int)
+                in_array = (array_indexes > 0) & (array_indexes < len(_frames))
+                result = np.zeros((len(t), 2))
+                result[in_array] = _frames[array_indexes[in_array]]
+
+                return result
+
+            else:
+                # noinspection PyShadowingNames
+                i = int(self.fps * t)
+
+                if i < 0 or i >= len(_frames):
+                    return 0 * _frames[0]
+
+                else:
+                    return _frames[i]
+                # end if
+            # end if
+        # end make_frame
+
+        for i in iterations:
+            frame = self._audio.get_frame(values[i])
+            frames.append(frame)
+
+            yield frame
+        # end for
+
+        self._audio.reader.close_proc()
+        self._audio.reader.make_frame = make_frame
+    # end load_audio_generator
+
     def load_frames(
             self,
             path: Union[str, Path],
@@ -273,7 +376,7 @@ class Video:
             step: Optional[int] = None
     ) -> None:
         """
-        Loads the data from the file.
+        Loads the video data from the file.
 
         :param path: The path to the source file.
         :param silent: The value for no output.
@@ -288,6 +391,31 @@ class Video:
             )
         )
     # end load_frames
+
+    def load_audio(
+            self,
+            path: Union[str, Path],
+            silent: Optional[bool] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> None:
+        """
+        Loads the audio data from the file.
+
+        :param path: The path to the source file.
+        :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        """
+
+        self.audio.extend(
+            self.load_audio_generator(
+                path=path, silent=silent, start=start, end=end, step=step
+            )
+        )
+    # end load_audio
 
     @classmethod
     def load(
@@ -329,19 +457,89 @@ class Video:
 
         frames = list(frames)
 
-        data = cls(
+        video = cls(
             frames=frames,
             fps=fps, width=width, height=height,
             source=path, destination=destination
         )
 
-        data.load_frames(
+        video.load_audio(
             path=path, silent=silent,
             start=start, end=end or length, step=step
         )
 
-        return data
+        video.load_frames(
+            path=path, silent=silent,
+            start=start, end=end or length, step=step
+        )
+
+        return video
     # end load
+
+    def _save(
+            self,
+            path: Optional[Union[str, Path]] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None,
+            audio: Optional[bool] = None,
+            video: Optional[bool] = None
+    ) -> None:
+        """
+        Saves the video and audio into the file.
+
+        :param path: The saving path.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        :param audio: The value to save the audio.
+        :param video: The value to save the frames.
+        """
+
+        if audio is None:
+            audio = True
+        # end if
+
+        if video is None:
+            video = True
+        # end if
+
+        path = path or self.destination
+
+        if path is None:
+            raise ValueError("No path specified.")
+        # end if
+
+        path = str(path)
+
+        start = start or 0
+        end = end or self.length
+        step = step or 1
+
+        audio_clip = None
+
+        if audio:
+            audio_clip = self._audio
+        # end if
+
+        if video:
+            video_clip = ImageSequenceClip(self.frames[start:end:step], fps=self.fps)
+            video_clip = video_clip.set_audio(audio_clip)
+            video_clip.write_videofile(path, fps=self.fps, verbose=False, logger=None)
+            video_clip.close()
+        # end if
+
+        if audio and not video:
+            codec = 'pcm_s16le' if path.endswith(".avi") else None
+            audio_clip.write_audiofile(
+                path, fps=self.fps, verbose=False, logger=None, codec=codec
+            )
+        # end if
+
+        if audio:
+            audio_clip.close()
+        # end if
+    # end _save
 
     def save_frames(
             self,
@@ -359,25 +557,27 @@ class Video:
         :param step: The step for the frames.
         """
 
-        path = path or self.destination
-
-        if path is None:
-            raise ValueError("No path specified.")
-        # end if
-
-        path = str(path)
-
-        start = start or 0
-        end = end or self.length
-        step = step or 1
-
-        video_frames = self.frames[start:end:step]
-
-        clip = ImageSequenceClip(video_frames, fps=self.fps)
-
-        clip.write_videofile(path, fps=self.fps, verbose=False, logger=None)
-        clip.close()
+        self._save(path=path, start=start, end=end, step=step, audio=False)
     # end save
+
+    def save_audio(
+            self,
+            path: Optional[Union[str, Path]] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> None:
+        """
+        Saves the video and audio into the file.
+
+        :param path: The saving path.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        """
+
+        self._save(path=path, start=start, end=end, step=step, video=False)
+    # end save_audio
 
     def save(
             self,
@@ -395,7 +595,7 @@ class Video:
         :param step: The step for the frames.
         """
 
-        self.save_frames(path=path, start=start, end=end, step=step)
+        self._save(path=path, start=start, end=end, step=step)
     # end save
 
     def copy(self) -> Self:
@@ -403,6 +603,7 @@ class Video:
 
         return Video(
             frames=self.frames.copy(),
+            audio=self.audio.copy(),
             fps=self.fps, width=self.width, height=self.height,
             source=self.source, destination=self.destination,
             silent=self.silent
