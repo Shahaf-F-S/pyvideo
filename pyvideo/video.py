@@ -6,8 +6,6 @@ from typing import (
 )
 from pathlib import Path
 
-from attrs import define, field
-
 import numpy as np
 import cv2
 from tqdm import tqdm
@@ -17,22 +15,8 @@ __all__ = [
     "Video"
 ]
 
-@define(hash=True, slots=False)
 class Video:
     """A class to contain video metadata."""
-
-    fps: float
-
-    width: Optional[int] = None
-    height: Optional[int] = None
-
-    source: Optional[Union[str, Path]] = None
-    destination: Optional[Union[str, Path]] = None
-
-    silent: Optional[bool] = True
-
-    frames: Optional[List[np.ndarray]] = field(factory=list)
-    audio: Optional[List[np.ndarray]] = field(factory=list)
 
     SILENT: ClassVar[bool] = True
 
@@ -43,16 +27,55 @@ class Video:
         Self = Any
     # end try
 
-    def __attrs_post_init__(self) -> None:
-        """Defines the attributes of the class."""
+    def __init__(
+            self,
+            fps: float,
+            width: Optional[int] = None,
+            height: Optional[int] = None,
+            source: Optional[Union[str, Path]] = None,
+            destination: Optional[Union[str, Path]] = None,
+            silent: Optional[bool] = True,
+            frames: Optional[List[np.ndarray]] = None,
+            audio: Optional[List[np.ndarray]] = None,
+    ) -> None:
+        """
+        Defines the attributes of a video.
 
-        if self.silent is None:
-            self.silent = self.SILENT
+        :param fps: The frames per second rate.
+        :param width: The width of each frame.
+        :param height: The height of each frame.
+        :param source: The source file path.
+        :param destination: The destination file path.
+        :param silent: The value to silent output.
+        :param frames: The list of frames.
+        :param audio: The list of audio data.
+        """
+
+        if silent is None:
+            silent = self.SILENT
         # end if
 
-        if self.frames is None:
-            self.frames = []
+        if frames is None:
+            frames = []
         # end if
+
+        if audio is None:
+            audio = []
+        # end if
+
+        self.fps = fps
+        self.width = width
+        self.height = height
+
+        self.source = source
+        self.destination = destination
+
+        self.silent = silent
+
+        self.frames = frames
+        self.audio = audio
+
+        self._audio: Optional[AudioFileClip] = None
 
         if self.frames:
             if self.width is None:
@@ -63,9 +86,7 @@ class Video:
                 self.height = self.frames[0].shape[0]
             # end if
         # end if
-
-        self._audio: Optional[AudioFileClip] = None
-    # end __attrs_post_init__
+    # end __init__
 
     @property
     def length(self) -> float:
@@ -140,8 +161,13 @@ class Video:
         end = end or self.length
         step = step or 1
 
-        video.frames[:] = video.frames[start:end:step]
-        video.audio[:] = video.audio[start:end:step]
+        if video.frames:
+            video.frames[:] = video.frames[start:end:step]
+        # end if
+
+        if video.audio:
+            video.audio[:] = video.audio[start:end:step]
+        # end if
 
         return video
     # end cut
@@ -196,6 +222,91 @@ class Video:
 
         return self.resize(size=size, inplace=inplace)
     # end rescale
+
+    def crop(
+            self,
+            upper_left: Tuple[int, int],
+            lower_right: Tuple[int, int],
+            inplace: Optional[bool] = False
+    ) -> Self:
+        """
+        Crops the frames of the video.
+
+        :param upper_left: The index of the upper left corner.
+        :param lower_right: The index of the lower right corner.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        width = lower_right[0] - upper_left[0]
+        height = lower_right[1] - upper_left[1]
+
+        if video.frames:
+            if (
+                (width > video.width) or
+                (height > video.height) or
+                not (0 <= lower_right[0] <= video.width)
+                or not (0 <= upper_left[1] <= video.height)
+            ):
+                raise ValueError(
+                    f"Combination of upper left corner: {upper_left} "
+                    f"and lowe right corner: {lower_right} is invalid "
+                    f"for frames of shape: {video.size}"
+                )
+            # end if
+
+            video.frames[:] = [
+                frame[
+                    upper_left[1]:lower_right[1],
+                    upper_left[0]:lower_right[0]
+                ] for frame in video.frames
+            ]
+        # end if
+
+        video.width = width
+        video.height = height
+
+        return video
+    # end crop
+
+    def color(
+            self,
+            contrast: float,
+            brightness: float,
+            inplace: Optional[bool] = False
+    ) -> Self:
+        """
+        Edits the color of the frames.
+
+        :param contrast: The contrast factor.
+        :param brightness: The brightness factor.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        video.frames[:] = [
+            cv2.convertScaleAbs(frame, alpha=contrast, beta=int((brightness - 1) * 100))
+            for frame in video.frames
+        ]
+
+        return video
+    # end color
 
     def load_frames_generator(
             self,
@@ -316,7 +427,6 @@ class Video:
             total=len(iterations)
         ) if not silent else iterations
 
-        # noinspection PyAttributeOutsideInit
         self._audio = AudioFileClip(path)
 
         values = np.arange(0, end, 1.0 / self.fps)
@@ -629,7 +739,6 @@ class Video:
         self.destination = video.destination
         self.silent = video.silent
 
-        # noinspection PyAttributeOutsideInit
         self._audio = video._audio.copy()
     # end inherit
 # end Video
