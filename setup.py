@@ -25,7 +25,7 @@ def main() -> None:
         requirements="requirements.txt",
         dev_requirements="requirements-dev.txt",
         name='pyvideoio',
-        version='0.2.0',
+        version='0.2.1',
         description=(
             "A lightweight module for simple "
             "handling of video frames and audio."

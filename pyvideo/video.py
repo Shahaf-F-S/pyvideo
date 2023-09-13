@@ -21,8 +21,6 @@ __all__ = [
 class Video:
     """A class to contain video metadata."""
 
-    # __slots__ = ('fps', 'width', 'height', 'source', '')
-
     fps: float
 
     width: Optional[int] = None
@@ -143,6 +141,7 @@ class Video:
         step = step or 1
 
         video.frames[:] = video.frames[start:end:step]
+        video.audio[:] = video.audio[start:end:step]
 
         return video
     # end cut
@@ -537,7 +536,7 @@ class Video:
         # end if
 
         if audio:
-            audio_clip.close()
+            self._audio.reader.close_proc()
         # end if
     # end _save
 
@@ -601,12 +600,36 @@ class Video:
     def copy(self) -> Self:
         """Creates a copy of the data."""
 
-        return Video(
+        video = Video(
             frames=self.frames.copy(),
             audio=self.audio.copy(),
             fps=self.fps, width=self.width, height=self.height,
             source=self.source, destination=self.destination,
             silent=self.silent
         )
+
+        video._audio = self._audio.copy()
+
+        return video
     # end copy
+
+    def inherit(self, video: Self) -> None:
+        """
+        Inherits the data from the given video.
+
+        :param video: The source video object.
+        """
+
+        self.frames = video.frames.copy()
+        self.audio = video.audio.copy()
+        self.fps = video.fps
+        self.width = video.width
+        self.height = video.height
+        self.source = video.source
+        self.destination = video.destination
+        self.silent = video.silent
+
+        # noinspection PyAttributeOutsideInit
+        self._audio = video._audio.copy()
+    # end inherit
 # end Video
