@@ -105,7 +105,7 @@ class Audio:
         """
 
         return [
-            i * (self.duration / len(self.frames))
+            round(i * (self.duration / len(self.frames)), 12)
             for i in range(1, len(self.frames) + 1)
         ]
     # end time_frame
@@ -142,6 +142,11 @@ class Audio:
         if audio.frames:
             audio.frames[:] = audio.frames[start:end:step]
         # end if
+
+        audio._audio = audio._audio.subclip(
+            t_start=round(start * (self.duration / len(self.frames)), 12),
+            t_end=round(end * (self.duration / len(self.frames)), 12)
+        )
 
         audio.duration = (len(audio.frames) * audio.fps) / 1000
 
@@ -351,6 +356,7 @@ class Audio:
         path = str(path)
 
         codec = 'pcm_s16le' if path.endswith(".avi") else None
+
         self._audio.write_audiofile(
             path, fps=44100, codec=codec, verbose=False, logger=None
         )

@@ -1,6 +1,6 @@
 # test.py
 
-from pyvideo.video import Video
+from pyvideo import Video
 
 SOURCE = "media/videos/input/milo.mp4"
 DESTINATION = "media/videos/output/milo.mp4"
@@ -13,7 +13,7 @@ def main() -> None:
     video = (
         video.
         copy().
-        cut(start=30).
+        cut(start=100).
         crop(upper_left=(0, 0), lower_right=(368, 656)).
         rescale(factor=0.75).
         color(contrast=1.25, brightness=0.75)
