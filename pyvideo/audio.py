@@ -335,9 +335,6 @@ class Audio:
 
         path = str(path)
 
-        print(self.fps, self._audio.fps)
-        print(self.duration, self._audio.duration)
-
         codec = 'pcm_s16le' if path.endswith(".avi") else None
         self._audio.write_audiofile(
             path, fps=44100, codec=codec, verbose=False, logger=None
