@@ -26,7 +26,7 @@ class Audio:
 
     def __init__(
             self,
-            fps: Optional[float] = None,
+            fps: float,
             source: Optional[Union[str, Path]] = None,
             destination: Optional[Union[str, Path]] = None,
             silent: Optional[bool] = True,
@@ -97,6 +97,19 @@ class Audio:
         self._audio.duration = value
     # end duration
 
+    def time_frame(self) -> List[float]:
+        """
+        Returns a list of the time points.
+
+        :return: The list of time points.
+        """
+
+        return [
+            i * (self.duration / len(self.frames))
+            for i in range(1, len(self.frames) + 1)
+        ]
+    # end time_frame
+
     def cut(
             self,
             start: Optional[int] = None,
@@ -130,7 +143,9 @@ class Audio:
             audio.frames[:] = audio.frames[start:end:step]
         # end if
 
-        # audio._audio.duration = audio.duration
+        audio.duration = (len(audio.frames) * audio.fps) / 1000
+
+        audio._update_audio()
 
         return audio
     # end cut
@@ -236,9 +251,9 @@ class Audio:
             yield frame
         # end for
 
-        self.fps = self._audio.fps
-
         self._audio.reader.close_proc()
+
+        self.source = path
     # end load_audio_generator
 
     def load_frames(
@@ -341,6 +356,8 @@ class Audio:
         )
 
         self._audio.reader.close_proc()
+
+        self.destination = path
     # end _save
 
     def copy(self) -> Self:
@@ -350,10 +367,11 @@ class Audio:
             frames=self.frames.copy(),
             fps=self.fps, source=self.source,
             destination=self.destination,
-            silent=self.silent
+            silent=self.silent,
+            audio=self._audio.copy()
         )
 
-        audio._audio = self._audio.copy()
+        audio._update_audio()
 
         return audio
     # end copy
@@ -366,11 +384,12 @@ class Audio:
         """
 
         self.frames = video.frames.copy()
-        self.fps = video.fps
+        self._audio = video._audio.copy()
+
         self.source = video.source
         self.destination = video.destination
         self.silent = video.silent
 
-        self._audio = video._audio.copy()
+        self._update_audio()
     # end inherit
 # end Audio
