@@ -321,11 +321,7 @@ class Audio:
         fps = float(cap.get(cv2.CAP_PROP_FPS))
         length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if frames is None:
-            frames = []
-        # end if
-
-        frames = list(frames)
+        frames = list(frames or [])
 
         audio = cls(
             frames=frames, fps=fps,
@@ -360,8 +356,6 @@ class Audio:
         self._audio.write_audiofile(
             path, fps=44100, codec=codec, verbose=False, logger=None
         )
-
-        self._audio.reader.close_proc()
 
         self.destination = path
     # end _save

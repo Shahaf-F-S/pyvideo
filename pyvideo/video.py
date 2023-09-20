@@ -38,7 +38,7 @@ class Video:
             destination: Optional[Union[str, Path]] = None,
             silent: Optional[bool] = True,
             frames: Optional[List[np.ndarray]] = None,
-            audio: Optional[Audio] = None,
+            audio: Optional[Audio] = None
     ) -> None:
         """
         Defines the attributes of a video.
@@ -71,7 +71,7 @@ class Video:
         self.silent = silent
 
         self.frames = frames
-        self.audio = audio
+        self._audio = audio
 
         if self.frames:
             if self.width is None:
@@ -129,7 +129,7 @@ class Video:
         :return: The int amount of time.
         """
 
-        return self.fps * self.length
+        return round(self.length / self.fps, 12)
     # end duration
 
     @property
@@ -153,6 +153,42 @@ class Video:
 
         return self.width / self.height
     # end size
+
+    @property
+    def audio(self) -> Audio:
+        """
+        Returns the frame per second rate of the video.
+
+        :return: The video speed.
+        """
+
+        return self._audio
+    # end fps
+
+    @audio.setter
+    def audio(self, value: Audio) -> None:
+        """
+        Returns the frame per second rate of the video.
+
+        :param value: The video speed.
+        """
+
+        if any(
+            value1 != value2 for value1, value2 in
+            zip(
+                (self.fps, self.length),
+                (value.fps, value.length)
+            )
+        ):
+            raise ValueError(
+                "Audio object must have the exact same "
+                "identifier values (fps, duration, length) "
+                "as the video object"
+            )
+        # end if
+
+        self._audio = value
+    # end fps
 
     def time_frame(self) -> List[float]:
         """
@@ -200,9 +236,11 @@ class Video:
             video.frames[:] = video.frames[start:end:step]
         # end if
 
-        video.audio = video.audio.cut(
-            start=start, end=end, step=step, inplace=inplace
-        )
+        if isinstance(video.audio, Audio):
+            video.audio = video.audio.cut(
+                start=start, end=end, step=step, inplace=inplace
+            )
+        # end if
 
         return video
     # end cut
@@ -447,10 +485,35 @@ class Video:
 
         self.frames.extend(
             self.load_frames_generator(
-                path=path, silent=silent, start=start, end=end, step=step
+                path=path, silent=silent,
+                start=start, end=end, step=step
             )
         )
     # end load_frames
+
+    def load_audio(
+            self,
+            path: Union[str, Path],
+            silent: Optional[bool] = None,
+            start: Optional[int] = None,
+            end: Optional[int] = None,
+            step: Optional[int] = None
+    ) -> None:
+        """
+        Loads the audio data from the file.
+
+        :param path: The path to the source file.
+        :param silent: The value for no output.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        """
+
+        self.audio = Audio.load(
+            path=path, silent=silent,
+            start=start, end=end, step=step
+        )
+    # end load_audio
 
     @classmethod
     def load(
@@ -459,6 +522,7 @@ class Video:
             destination: Optional[Union[str, Path]] = None,
             silent: Optional[bool] = None,
             frames: Optional[Iterable[np.ndarray]] = None,
+            audio: Optional[Union[bool, Audio]] = None,
             start: Optional[int] = None,
             end: Optional[int] = None,
             step: Optional[int] = None
@@ -470,12 +534,17 @@ class Video:
         :param destination: The destination to set for the video object.
         :param silent: The value for no output.
         :param frames: The frames to insert to the video data object.
+        :param audio: The audio object or the value to load the audio object.
         :param start: The starting index for the frames.
         :param end: The ending index for the frames.
         :param step: The step for the frames.
 
         :return: The loaded file data.
         """
+
+        if audio is None:
+            audio = True
+        # end if
 
         path = str(path)
 
@@ -486,18 +555,11 @@ class Video:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if frames is None:
-            frames = []
-        # end if
-
-        frames = list(frames)
-
-        audio = Audio.load(
-            path=path, silent=silent, start=start, end=end, step=step
-        )
+        frames = list(frames or [])
 
         video = cls(
-            frames=frames, audio=audio,
+            frames=frames,
+            audio=(audio if not isinstance(audio, bool) else None),
             fps=fps, width=width, height=height,
             source=path, destination=destination
         )
@@ -507,13 +569,20 @@ class Video:
             start=start, end=end or length, step=step
         )
 
+        if audio is True:
+            video.load_audio(
+                path=path, silent=silent,
+                start=start, end=end or length, step=step
+            )
+        # end if
+
         return video
     # end load
 
-    def _save(
+    def save(
             self,
             path: Optional[Union[str, Path]] = None,
-            audio: Optional[bool] = None
+            audio: Optional[Union[bool, Audio]] = None
     ) -> None:
         """
         Saves the video and audio into the file.
@@ -521,6 +590,8 @@ class Video:
         :param path: The saving path.
         :param audio: The value to save the audio.
         """
+
+        audio: Union[Audio, bool]
 
         if audio is None:
             audio = True
@@ -534,23 +605,37 @@ class Video:
 
         path = str(path)
 
-        audio_clip = None
-
-        if audio:
-            # noinspection PyProtectedMember
-            audio_clip = self.audio._audio
-        # end if
-
         video_clip = ImageSequenceClip(self.frames, fps=self.fps)
-        video_clip = video_clip.set_audio(audio_clip)
-        video_clip.write_videofile(path, fps=self.fps, verbose=False, logger=None)
-        video_clip.close()
 
         if audio:
-            # noinspection PyProtectedMember
-            self.audio._audio.reader.close_proc()
+            if isinstance(audio, bool):
+                if self.audio is None:
+                    raise ValueError(
+                        "Audio object is not defined. Make sure audio "
+                        "data is loaded before attempting to save it."
+                    )
+                # end if
+
+                self.audio: Audio
+
+                # noinspection PyProtectedMember
+                audio_clip = self.audio._audio
+
+            else:
+                audio: Audio
+
+                # noinspection PyProtectedMember
+                audio_clip = audio._audio
+            # end if
+
+            video_clip = video_clip.set_audio(audio_clip)
         # end if
-    # end _save
+
+        video_clip.write_videofile(
+            path, fps=self.fps, verbose=False, logger=None
+        )
+        video_clip.close()
+    # end save
 
     def save_frames(self, path: Optional[Union[str, Path]] = None) -> None:
         """
@@ -559,17 +644,7 @@ class Video:
         :param path: The saving path.
         """
 
-        self._save(path=path, audio=False)
-    # end save
-
-    def save(self, path: Optional[Union[str, Path]] = None) -> None:
-        """
-        Saves the video and audio into the file.
-
-        :param path: The saving path.
-        """
-
-        self._save(path=path, audio=True)
+        self.save(path=path, audio=False)
     # end save
 
     def copy(self) -> Self:
@@ -577,7 +652,7 @@ class Video:
 
         video = Video(
             frames=self.frames.copy(),
-            audio=self.audio.copy(),
+            audio=(self.audio.copy() if isinstance(self.audio, Audio) else None),
             fps=self.fps, width=self.width, height=self.height,
             source=self.source, destination=self.destination,
             silent=self.silent
@@ -594,7 +669,10 @@ class Video:
         """
 
         self.frames = video.frames.copy()
-        self.audio = video.audio.copy()
+
+        if isinstance(video.audio, Audio):
+            self.audio = video.audio.copy()
+        # end if
 
         self.fps = video.fps
         self.width = video.width
