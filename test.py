@@ -18,7 +18,8 @@ def main() -> None:
         rescale(factor=0.75).
         color(contrast=1.25, brightness=0.75).
         volume(factor=5.5).
-        speed(factor=1.5)
+        speed(factor=1.5).
+        flip(horizontally=True)
     )
 
     video.save(DESTINATION)

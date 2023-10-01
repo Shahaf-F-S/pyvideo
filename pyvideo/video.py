@@ -394,6 +394,43 @@ class Video:
         return video
     # end color
 
+    def flip(
+            self,
+            vertically: Optional[bool] = None,
+            horizontally: Optional[bool] = None,
+            inplace: Optional[bool] = False
+    ) -> Self:
+        """
+        Flips the frames.
+
+        :param vertically: The value to flip the frames vertically.
+        :param horizontally: The value to flip the frames horizontally.
+        :param inplace: The value to set changes in the object.
+
+        :return: The modified video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        if vertically:
+            video.frames[:] = [
+                cv2.flip(frame, 0) for frame in video.frames
+            ]
+
+        if horizontally:
+            video.frames[:] = [
+                cv2.flip(frame, 1) for frame in video.frames
+            ]
+        # end if
+
+        return video
+    # end flip
+
     def volume(self, factor: float, inplace: Optional[bool] = False) -> Self:
         """
         Changes the volume of the audio.
