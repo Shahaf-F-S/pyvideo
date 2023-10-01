@@ -1,7 +1,9 @@
 # audio.py
 
 from pathlib import Path
-from typing import ClassVar, Any, Optional, Union, List, Generator, Iterable
+from typing import (
+    ClassVar, Any, Optional, Union, List, Generator, Iterable
+)
 
 import numpy as np
 from tqdm import tqdm
@@ -52,7 +54,7 @@ class Audio:
             frames = []
         # end if
 
-        self.fps = fps
+        self._fps = fps
 
         self.source = source
         self.destination = destination
@@ -83,19 +85,37 @@ class Audio:
         :return: The int amount of time.
         """
 
-        return self._audio.duration
+        return round(self.length / self._fps, 12)
     # end duration
 
-    @duration.setter
-    def duration(self, value: float) -> None:
+    @property
+    def fps(self) -> float:
         """
-        Returns the amount of time in the video.
+        Returns the frame per second rate of the video.
 
-        :param value: The int amount of time.
+        :return: The video speed.
         """
 
-        self._audio.duration = value
-    # end duration
+        return self._fps
+    # end fps
+
+    @fps.setter
+    def fps(self, value: float) -> None:
+        """
+        Returns the frame per second rate of the video.
+
+        :param value: The video speed.
+        """
+
+        before = self._fps
+
+        self._fps = value
+
+        if isinstance(self._audio, AudioClip):
+            self._audio.fps *= (value / before)
+            self._audio.duration = round(self.length / self._fps, 12)
+        # end if
+    # end fps
 
     def time_frame(self) -> List[float]:
         """
@@ -148,8 +168,6 @@ class Audio:
             t_end=round(end * (self.duration / len(self.frames)), 12)
         )
 
-        audio.duration = (len(audio.frames) * audio.fps) / 1000
-
         audio._update_audio()
 
         return audio
@@ -192,6 +210,53 @@ class Audio:
 
         self._audio.reader.make_frame = self._make_frame
     # end _update_audio
+
+    def volume(self, factor: float, inplace: Optional[bool] = False) -> Self:
+        """
+        Changes the volume of the audio.
+
+        :param factor: The change value.
+        :param inplace: The value to save changes to the object.
+
+        :return: The changes audio object.
+        """
+
+        if inplace:
+            audio = self
+
+        else:
+            audio = self.copy()
+        # end if
+
+        audio.frames[:] = [frame * factor for frame in audio.frames]
+        audio._audio = audio._audio.fl(
+            lambda gf, t: gf(t) * factor, keep_duration=True
+        )
+
+        return audio
+    # end volume
+
+    def speed(self, factor: float, inplace: Optional[bool] = False) -> Self:
+        """
+        Changes the speed of the playing.
+
+        :param factor: The speed factor.
+        :param inplace: The value to save changes to the object.
+
+        :return: The changes audio object.
+        """
+
+        if inplace:
+            audio = self
+
+        else:
+            audio = self.copy()
+        # end if
+
+        audio.fps *= factor
+
+        return audio
+    # end speed
 
     def load_frames_generator(
             self,

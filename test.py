@@ -16,7 +16,9 @@ def main() -> None:
         cut(start=100).
         crop(upper_left=(0, 0), lower_right=(368, 656)).
         rescale(factor=0.75).
-        color(contrast=1.25, brightness=0.75)
+        color(contrast=1.25, brightness=0.75).
+        volume(factor=5.5).
+        speed(factor=1.5)
     )
 
     video.save(DESTINATION)

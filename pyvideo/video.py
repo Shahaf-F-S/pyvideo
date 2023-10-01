@@ -394,6 +394,54 @@ class Video:
         return video
     # end color
 
+    def volume(self, factor: float, inplace: Optional[bool] = False) -> Self:
+        """
+        Changes the volume of the audio.
+
+        :param factor: The change value.
+        :param inplace: The value to save changes to the object.
+
+        :return: The changes audio object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        if video.audio is None:
+            raise ValueError("Video has no audio object.")
+        # end if
+
+        video._audio = video.audio.volume(factor=factor, inplace=inplace)
+
+        return video
+    # end volume
+
+    def speed(self, factor: float, inplace: Optional[bool] = False) -> Self:
+        """
+        Changes the speed of the playing.
+
+        :param factor: The speed factor.
+        :param inplace: The value to save changes to the object.
+
+        :return: The changes video object.
+        """
+
+        if inplace:
+            video = self
+
+        else:
+            video = self.copy()
+        # end if
+
+        video.fps *= factor
+
+        return video
+    # end speed
+
     def load_frames_generator(
             self,
             path: Optional[Union[str, Path]] = None,
@@ -670,8 +718,11 @@ class Video:
 
         self.frames = video.frames.copy()
 
-        if isinstance(video.audio, Audio):
+        if (self.audio is None) and (video.audio is not None):
             self.audio = video.audio.copy()
+
+        elif None not in (self.audio, video.audio):
+            self.audio.inherit(video.audio)
         # end if
 
         self.fps = video.fps
