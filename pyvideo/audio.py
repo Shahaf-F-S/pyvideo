@@ -1,5 +1,6 @@
 # audio.py
 
+import os
 from pathlib import Path
 from typing import (
     ClassVar, Any, Optional, Union, List, Generator, Iterable
@@ -417,6 +418,10 @@ class Audio:
         path = str(path)
 
         codec = 'pcm_s16le' if path.endswith(".avi") else None
+
+        if location := Path(path).parent:
+            os.makedirs(location, exist_ok=True)
+        # end if
 
         self._audio.write_audiofile(
             path, fps=44100, codec=codec, verbose=False, logger=None

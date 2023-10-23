@@ -1,5 +1,6 @@
 # video.py
 
+import os
 from typing import (
     Optional, List, Union, Tuple,
     Generator, Iterable, Any, ClassVar
@@ -678,7 +679,7 @@ class Video:
 
         audio: Union[Audio, bool]
 
-        if audio is None:
+        if audio is None and isinstance(self.audio, Audio):
             audio = True
         # end if
 
@@ -693,7 +694,7 @@ class Video:
         video_clip = ImageSequenceClip(self.frames, fps=self.fps)
 
         if audio:
-            if isinstance(audio, bool):
+            if audio is True:
                 if self.audio is None:
                     raise ValueError(
                         "Audio object is not defined. Make sure audio "
@@ -714,6 +715,10 @@ class Video:
             # end if
 
             video_clip = video_clip.set_audio(audio_clip)
+        # end if
+
+        if location := Path(path).parent:
+            os.makedirs(location, exist_ok=True)
         # end if
 
         video_clip.write_videofile(
