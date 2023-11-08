@@ -2,8 +2,7 @@
 
 import os
 from typing import (
-    Optional, List, Union, Tuple,
-    Generator, Iterable, Any, ClassVar
+    Generator, Iterable, Self, ClassVar
 )
 from pathlib import Path
 
@@ -23,23 +22,16 @@ class Video:
 
     SILENT: ClassVar[bool] = True
 
-    try:
-        from typing import Self
-
-    except ImportError:
-        Self = Any
-    # end try
-
     def __init__(
             self,
             fps: float,
-            width: Optional[int] = None,
-            height: Optional[int] = None,
-            source: Optional[Union[str, Path]] = None,
-            destination: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = True,
-            frames: Optional[List[np.ndarray]] = None,
-            audio: Optional[Audio] = None
+            width: int = None,
+            height: int = None,
+            source: str | Path = None,
+            destination: str | Path = None,
+            silent: bool = True,
+            frames: list[np.ndarray] = None,
+            audio: Audio = None
     ) -> None:
         """
         Defines the attributes of a video.
@@ -134,7 +126,7 @@ class Video:
     # end duration
 
     @property
-    def size(self) -> Tuple[int, int]:
+    def size(self) -> tuple[int, int]:
         """
         Returns the size of each frame in the video.
 
@@ -191,7 +183,7 @@ class Video:
         self._audio = value
     # end fps
 
-    def time_frame(self) -> List[float]:
+    def time_frame(self) -> list[float]:
         """
         Returns a list of the time points.
 
@@ -206,10 +198,10 @@ class Video:
 
     def cut(
             self,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None,
-            inplace: Optional[bool] = False
+            start: int = None,
+            end: int = None,
+            step: int = None,
+            inplace: bool = False
     ) -> Self:
         """
         Cuts the video.
@@ -246,7 +238,7 @@ class Video:
         return video
     # end cut
 
-    def fit(self, inplace: Optional[bool] = False) -> Self:
+    def fit(self, inplace: bool = False) -> Self:
         """
         Resizes the frames in the video.
 
@@ -260,7 +252,7 @@ class Video:
         )
     # end fit
 
-    def resize(self, size: Tuple[int, int], inplace: Optional[bool] = False) -> Self:
+    def resize(self, size: tuple[int, int], inplace: bool = False) -> Self:
         """
         Resizes the frames in the video.
 
@@ -286,7 +278,7 @@ class Video:
         return video
     # end resize
 
-    def rescale(self, factor: float, inplace: Optional[bool] = False) -> Self:
+    def rescale(self, factor: float, inplace: bool = False) -> Self:
         """
         Resizes the frames in the video.
 
@@ -303,9 +295,9 @@ class Video:
 
     def crop(
             self,
-            upper_left: Tuple[int, int],
-            lower_right: Tuple[int, int],
-            inplace: Optional[bool] = False
+            upper_left: tuple[int, int],
+            lower_right: tuple[int, int],
+            inplace: bool = False
     ) -> Self:
         """
         Crops the frames of the video.
@@ -357,9 +349,9 @@ class Video:
 
     def color(
             self,
-            contrast: Optional[float] = None,
-            brightness: Optional[float] = None,
-            inplace: Optional[bool] = False
+            contrast: float = None,
+            brightness: float = None,
+            inplace: bool = False
     ) -> Self:
         """
         Edits the color of the frames.
@@ -397,9 +389,9 @@ class Video:
 
     def flip(
             self,
-            vertically: Optional[bool] = None,
-            horizontally: Optional[bool] = None,
-            inplace: Optional[bool] = False
+            vertically: bool = None,
+            horizontally: bool = None,
+            inplace: bool = False
     ) -> Self:
         """
         Flips the frames.
@@ -432,7 +424,7 @@ class Video:
         return video
     # end flip
 
-    def volume(self, factor: float, inplace: Optional[bool] = False) -> Self:
+    def volume(self, factor: float, inplace: bool = False) -> Self:
         """
         Changes the volume of the audio.
 
@@ -458,7 +450,7 @@ class Video:
         return video
     # end volume
 
-    def speed(self, factor: float, inplace: Optional[bool] = False) -> Self:
+    def speed(self, factor: float, inplace: bool = False) -> Self:
         """
         Changes the speed of the playing.
 
@@ -482,11 +474,11 @@ class Video:
 
     def load_frames_generator(
             self,
-            path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path = None,
+            silent: bool = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> Generator[np.ndarray, None, None]:
         """
         Loads the frames data from the file.
@@ -553,11 +545,11 @@ class Video:
 
     def load_frames(
             self,
-            path: Union[str, Path],
-            silent: Optional[bool] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path,
+            silent: bool = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> None:
         """
         Loads the video data from the file.
@@ -579,11 +571,11 @@ class Video:
 
     def load_audio(
             self,
-            path: Union[str, Path],
-            silent: Optional[bool] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path,
+            silent: bool = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> None:
         """
         Loads the audio data from the file.
@@ -604,14 +596,14 @@ class Video:
     @classmethod
     def load(
             cls,
-            path: Union[str, Path],
-            destination: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None,
-            frames: Optional[Iterable[np.ndarray]] = None,
-            audio: Optional[Union[bool, Audio]] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path,
+            destination: str | Path = None,
+            silent: bool = None,
+            frames: Iterable[np.ndarray] = None,
+            audio: bool | Audio = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> Self:
         """
         Loads the data from the file.
@@ -667,8 +659,8 @@ class Video:
 
     def save(
             self,
-            path: Optional[Union[str, Path]] = None,
-            audio: Optional[Union[bool, Audio]] = None
+            path: str | Path = None,
+            audio: bool | Audio = None
     ) -> None:
         """
         Saves the video and audio into the file.
@@ -677,7 +669,7 @@ class Video:
         :param audio: The value to save the audio.
         """
 
-        audio: Union[Audio, bool]
+        audio: Audio | bool
 
         if audio is None and isinstance(self.audio, Audio):
             audio = True
@@ -727,7 +719,7 @@ class Video:
         video_clip.close()
     # end save
 
-    def save_frames(self, path: Optional[Union[str, Path]] = None) -> None:
+    def save_frames(self, path: str | Path = None) -> None:
         """
         Saves the video and audio into the file.
 

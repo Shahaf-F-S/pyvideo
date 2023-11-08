@@ -36,5 +36,5 @@ def main(project: str, silence: bool = True) -> None:
 # end main
 
 if __name__ == "__main__":
-    main(project="crypto_info")
+    main(project="pyvideo")
 # end if

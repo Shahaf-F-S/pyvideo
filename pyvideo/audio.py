@@ -2,9 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import (
-    ClassVar, Any, Optional, Union, List, Generator, Iterable
-)
+from typing import ClassVar, Self, Generator, Iterable
 
 import numpy as np
 from tqdm import tqdm
@@ -20,21 +18,14 @@ class Audio:
 
     SILENT: ClassVar[bool] = True
 
-    try:
-        from typing import Self
-
-    except ImportError:
-        Self = Any
-    # end try
-
     def __init__(
             self,
             fps: float,
-            source: Optional[Union[str, Path]] = None,
-            destination: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = True,
-            frames: Optional[List[np.ndarray]] = None,
-            audio: Optional[AudioClip] = None
+            source: str | Path = None,
+            destination: str | Path = None,
+            silent: bool = True,
+            frames: list[np.ndarray] = None,
+            audio: AudioClip = None
     ) -> None:
         """
         Defines the attributes of a video.
@@ -64,7 +55,7 @@ class Audio:
 
         self.frames = frames
 
-        self._audio: Optional[AudioFileClip] = audio
+        self._audio: AudioFileClip | None = audio
     # end __init__
 
     @property
@@ -118,7 +109,7 @@ class Audio:
         # end if
     # end fps
 
-    def time_frame(self) -> List[float]:
+    def time_frame(self) -> list[float]:
         """
         Returns a list of the time points.
 
@@ -133,10 +124,10 @@ class Audio:
 
     def cut(
             self,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None,
-            inplace: Optional[bool] = False
+            start: int = None,
+            end: int = None,
+            step: int = None,
+            inplace: bool = False
     ) -> Self:
         """
         Cuts the video.
@@ -174,7 +165,7 @@ class Audio:
         return audio
     # end cut
 
-    def _make_frame(self, t: Union[float, np.ndarray]) -> Union[np.ndarray, Iterable[np.ndarray]]:
+    def _make_frame(self, t: float | np.ndarray) -> np.ndarray | Iterable[np.ndarray]:
         """
         Returns the frame or frames of audio for the given time.
 
@@ -212,7 +203,7 @@ class Audio:
         self._audio.reader.make_frame = self._make_frame
     # end _update_audio
 
-    def volume(self, factor: float, inplace: Optional[bool] = False) -> Self:
+    def volume(self, factor: float, inplace: bool = False) -> Self:
         """
         Changes the volume of the audio.
 
@@ -237,7 +228,7 @@ class Audio:
         return audio
     # end volume
 
-    def speed(self, factor: float, inplace: Optional[bool] = False) -> Self:
+    def speed(self, factor: float, inplace: bool = False) -> Self:
         """
         Changes the speed of the playing.
 
@@ -261,11 +252,11 @@ class Audio:
 
     def load_frames_generator(
             self,
-            path: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path = None,
+            silent: bool = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> Generator[np.ndarray, None, None]:
         """
         Loads the audio data from the file.
@@ -329,11 +320,11 @@ class Audio:
 
     def load_frames(
             self,
-            path: Union[str, Path],
-            silent: Optional[bool] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path,
+            silent: bool = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> None:
         """
         Loads the video data from the file.
@@ -358,13 +349,13 @@ class Audio:
     @classmethod
     def load(
             cls,
-            path: Union[str, Path],
-            destination: Optional[Union[str, Path]] = None,
-            silent: Optional[bool] = None,
-            frames: Optional[Iterable[np.ndarray]] = None,
-            start: Optional[int] = None,
-            end: Optional[int] = None,
-            step: Optional[int] = None
+            path: str | Path,
+            destination: str | Path = None,
+            silent: bool = None,
+            frames: Iterable[np.ndarray] = None,
+            start: int = None,
+            end: int = None,
+            step: int = None
     ) -> Self:
         """
         Loads the data from the file.
@@ -402,7 +393,7 @@ class Audio:
         return audio
     # end load
 
-    def save(self, path: Optional[Union[str, Path]] = None) -> None:
+    def save(self, path: str | Path = None) -> None:
         """
         Saves the video and audio into the file.
 
