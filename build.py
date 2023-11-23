@@ -309,7 +309,7 @@ def build_manifest(
         # end open
     # end if
 # end build_manifest
-def collect_files(location: str, levels: int = None) -> list[str]:
+def collect_files(location: str | pathlib.Path, levels: int = None) -> list[str]:
     """
     Collects all the file paths from the location with the extension.
 
@@ -347,9 +347,9 @@ def collect_files(location: str, levels: int = None) -> list[str]:
 
 def setup(
         package: str | pathlib.Path, *,
-        readme: Iterable[str] = None,
-        exclude: Iterable[str] = None,
-        include: Iterable[str] = None,
+        readme: str | bool | pathlib.Path = None,
+        exclude: Iterable[str | pathlib.Path] = None,
+        include: Iterable[str | pathlib.Path] = None,
         requirements: str | pathlib.Path = None,
         dev_requirements: str | pathlib.Path = None,
         project: str | pathlib.Path = None,
@@ -377,7 +377,7 @@ def setup(
         include = list(include)
     # end if
 
-    if readme is None:
+    if readme in (None, True):
         readme = 'README.md' if os.path.exists('README.md') else None
     # end if
 
@@ -385,8 +385,8 @@ def setup(
         exclude = ()
     # end if
 
-    if readme is not None:
-        with codecs.open(readme, 'r') as desc_file:
+    if isinstance(readme, (str, pathlib.Path)):
+        with codecs.open(str(readme), 'r') as desc_file:
             long_description = desc_file.read()
         # end open
 
@@ -401,16 +401,15 @@ def setup(
     include = list(
         set(
             include + [
-                file for file in [
-                    requirements, dev_requirements, project, "build.py"
-                ]
-                if file and os.path.exists(file)
+                file for file in
+                [requirements, dev_requirements, project, "build.py"]
+                if file and os.path.exists(str(file))
             ]
         )
     )
 
     for included in list(include):
-        if os.path.isdir(included):
+        if included is not None and os.path.isdir(str(included)):
             include += list(set(collect_files(location=included)))
         # end if
     # end for
@@ -430,10 +429,13 @@ def setup(
     )
 
     build_manifest(include=include, manifest=manifest)
-    build_pyproject(project=project, **kwargs)
+
+    if project:
+        build_pyproject(project=project, **kwargs)
+    # end if
 
     _setup(
-        project=project,
+        **(dict(project=project) if project else {}),
         packages=packages,
         long_description=long_description,
         include_package_data=True,

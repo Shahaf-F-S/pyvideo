@@ -16,7 +16,6 @@ def main() -> None:
 
     setup(
         package="pyvideo",
-        project="pyproject.toml",
         exclude=[
             "__pycache__",
             "*.pyc"
@@ -25,7 +24,7 @@ def main() -> None:
         requirements="requirements.txt",
         dev_requirements="requirements-dev.txt",
         name='pyvideoio',
-        version='1.2.2',
+        version='1.2.3',
         description=(
             "A lightweight module for simple "
             "handling of video frames and audio."
