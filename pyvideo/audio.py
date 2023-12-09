@@ -40,11 +40,9 @@ class Audio:
 
         if silent is None:
             silent = self.SILENT
-        # end if
 
         if frames is None:
             frames = []
-        # end if
 
         self._fps = fps
 
@@ -56,7 +54,6 @@ class Audio:
         self.frames = frames
 
         self._audio: AudioFileClip | None = audio
-    # end __init__
 
     @property
     def length(self) -> float:
@@ -67,7 +64,6 @@ class Audio:
         """
 
         return len(self.frames)
-    # end length
 
     @property
     def duration(self) -> float:
@@ -78,7 +74,6 @@ class Audio:
         """
 
         return round(self.length / self._fps, 12)
-    # end duration
 
     @property
     def fps(self) -> float:
@@ -89,7 +84,6 @@ class Audio:
         """
 
         return self._fps
-    # end fps
 
     @fps.setter
     def fps(self, value: float) -> None:
@@ -106,8 +100,6 @@ class Audio:
         if isinstance(self._audio, AudioClip):
             self._audio.fps *= (value / before)
             self._audio.duration = round(self.length / self._fps, 12)
-        # end if
-    # end fps
 
     def time_frame(self) -> list[float]:
         """
@@ -120,7 +112,6 @@ class Audio:
             round(i * (self.duration / len(self.frames)), 12)
             for i in range(1, len(self.frames) + 1)
         ]
-    # end time_frame
 
     def cut(
             self,
@@ -145,7 +136,6 @@ class Audio:
 
         else:
             audio = self.copy()
-        # end if
 
         start = start or 0
         end = end or audio.length
@@ -153,7 +143,6 @@ class Audio:
 
         if audio.frames:
             audio.frames[:] = audio.frames[start:end:step]
-        # end if
 
         audio._audio = audio._audio.subclip(
             t_start=round(start * (self.duration / len(self.frames)), 12),
@@ -163,7 +152,6 @@ class Audio:
         audio._update_audio()
 
         return audio
-    # end cut
 
     def _make_frame(self, t: float | np.ndarray) -> np.ndarray | Iterable[np.ndarray]:
         """
@@ -193,15 +181,11 @@ class Audio:
 
             else:
                 return _frames[i]
-            # end if
-        # end if
-    # end make_frame
 
     def _update_audio(self) -> None:
         """Updates the audio data of the object."""
 
         self._audio.reader.make_frame = self._make_frame
-    # end _update_audio
 
     def volume(self, factor: float, inplace: bool = False) -> Self:
         """
@@ -218,7 +202,6 @@ class Audio:
 
         else:
             audio = self.copy()
-        # end if
 
         audio.frames[:] = [frame * factor for frame in audio.frames]
         audio._audio = audio._audio.fl(
@@ -226,7 +209,6 @@ class Audio:
         )
 
         return audio
-    # end volume
 
     def speed(self, factor: float, inplace: bool = False) -> Self:
         """
@@ -243,12 +225,10 @@ class Audio:
 
         else:
             audio = self.copy()
-        # end if
 
         audio.fps *= factor
 
         return audio
-    # end speed
 
     def load_frames_generator(
             self,
@@ -272,13 +252,11 @@ class Audio:
 
         if silent is None:
             silent = self.silent
-        # end if
 
         path = path or self.source
 
         if path is None:
             raise ValueError("No path specified.")
-        # end if
 
         path = str(path)
 
@@ -311,12 +289,10 @@ class Audio:
             frames.append(frame)
 
             yield frame
-        # end for
 
         self._audio.reader.close_proc()
 
         self.source = path
-    # end load_audio_generator
 
     def load_frames(
             self,
@@ -344,7 +320,6 @@ class Audio:
         )
 
         self._update_audio()
-    # end load_frames
 
     @classmethod
     def load(
@@ -391,7 +366,6 @@ class Audio:
         )
 
         return audio
-    # end load
 
     def save(self, path: str | Path = None) -> None:
         """
@@ -404,7 +378,6 @@ class Audio:
 
         if path is None:
             raise ValueError("No path specified.")
-        # end if
 
         path = str(path)
 
@@ -412,14 +385,12 @@ class Audio:
 
         if location := Path(path).parent:
             os.makedirs(location, exist_ok=True)
-        # end if
 
         self._audio.write_audiofile(
             path, fps=44100, codec=codec, verbose=False, logger=None
         )
 
         self.destination = path
-    # end _save
 
     def copy(self) -> Self:
         """Creates a copy of the data."""
@@ -435,7 +406,6 @@ class Audio:
         audio._update_audio()
 
         return audio
-    # end copy
 
     def inherit(self, video: Self) -> None:
         """
@@ -452,5 +422,3 @@ class Audio:
         self.silent = video.silent
 
         self._update_audio()
-    # end inherit
-# end Audio

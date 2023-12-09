@@ -23,8 +23,6 @@ def main() -> None:
     )
 
     video.save(DESTINATION)
-# end main
 
 if __name__ == "__main__":
     main()
-# end if

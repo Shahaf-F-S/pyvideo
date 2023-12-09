@@ -48,11 +48,9 @@ class Video:
 
         if silent is None:
             silent = self.SILENT
-        # end if
 
         if frames is None:
             frames = []
-        # end if
 
         self._fps = fps
         self.width = width
@@ -69,13 +67,9 @@ class Video:
         if self.frames:
             if self.width is None:
                 self.width = self.frames[0].shape[1]
-            # end if
 
             if self.height is None:
                 self.height = self.frames[0].shape[0]
-            # end if
-        # end if
-    # end __init__
 
     @property
     def length(self) -> float:
@@ -86,7 +80,6 @@ class Video:
         """
 
         return len(self.frames)
-    # end length
 
     @property
     def fps(self) -> float:
@@ -97,7 +90,6 @@ class Video:
         """
 
         return self._fps
-    # end fps
 
     @fps.setter
     def fps(self, value: float) -> None:
@@ -111,8 +103,6 @@ class Video:
 
         if isinstance(self.audio, Audio):
             self.audio.fps = value
-        # end if
-    # end fps
 
     @property
     def duration(self) -> float:
@@ -123,7 +113,6 @@ class Video:
         """
 
         return round(self.length / self.fps, 12)
-    # end duration
 
     @property
     def size(self) -> tuple[int, int]:
@@ -134,7 +123,6 @@ class Video:
         """
 
         return self.width, self.height
-    # end size
 
     @property
     def aspect_ratio(self) -> float:
@@ -145,7 +133,6 @@ class Video:
         """
 
         return self.width / self.height
-    # end size
 
     @property
     def audio(self) -> Audio:
@@ -156,7 +143,6 @@ class Video:
         """
 
         return self._audio
-    # end fps
 
     @audio.setter
     def audio(self, value: Audio) -> None:
@@ -178,10 +164,8 @@ class Video:
                 "identifier values (fps, duration, length) "
                 "as the video object"
             )
-        # end if
 
         self._audio = value
-    # end fps
 
     def time_frame(self) -> list[float]:
         """
@@ -194,7 +178,6 @@ class Video:
             i * (self.duration / len(self.frames))
             for i in range(1, len(self.frames) + 1)
         ]
-    # end time_frame
 
     def cut(
             self,
@@ -219,7 +202,6 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         start = start or 0
         end = end or self.length
@@ -227,16 +209,13 @@ class Video:
 
         if video.frames:
             video.frames[:] = video.frames[start:end:step]
-        # end if
 
         if isinstance(video.audio, Audio):
             video.audio = video.audio.cut(
                 start=start, end=end, step=step, inplace=inplace
             )
-        # end if
 
         return video
-    # end cut
 
     def fit(self, inplace: bool = False) -> Self:
         """
@@ -250,7 +229,6 @@ class Video:
         return self.resize(
             size=(self.width, self.height), inplace=inplace
         )
-    # end fit
 
     def resize(self, size: tuple[int, int], inplace: bool = False) -> Self:
         """
@@ -267,7 +245,6 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         video.frames[:] = [
             cv2.resize(frame, size) for frame in video.frames
@@ -276,7 +253,6 @@ class Video:
         video.height = size[1]
 
         return video
-    # end resize
 
     def rescale(self, factor: float, inplace: bool = False) -> Self:
         """
@@ -291,7 +267,6 @@ class Video:
         size = (int(self.width * factor), int(self.height * factor))
 
         return self.resize(size=size, inplace=inplace)
-    # end rescale
 
     def crop(
             self,
@@ -314,7 +289,6 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         width = lower_right[0] - upper_left[0]
         height = lower_right[1] - upper_left[1]
@@ -331,7 +305,6 @@ class Video:
                     f"and lowe right corner: {lower_right} is invalid "
                     f"for frames of shape: {video.size}"
                 )
-            # end if
 
             video.frames[:] = [
                 frame[
@@ -339,13 +312,11 @@ class Video:
                     upper_left[0]:lower_right[0]
                 ] for frame in video.frames
             ]
-        # end if
 
         video.width = width
         video.height = height
 
         return video
-    # end crop
 
     def color(
             self,
@@ -365,18 +336,15 @@ class Video:
 
         if contrast is None:
             contrast = 1
-        # end if
 
         if brightness is None:
             brightness = 1
-        # end if
 
         if inplace:
             video = self
 
         else:
             video = self.copy()
-        # end if
 
         video.frames[:] = [
             cv2.convertScaleAbs(
@@ -385,7 +353,6 @@ class Video:
         ]
 
         return video
-    # end color
 
     def flip(
             self,
@@ -408,7 +375,6 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         if vertically:
             video.frames[:] = [
@@ -419,10 +385,8 @@ class Video:
             video.frames[:] = [
                 cv2.flip(frame, 1) for frame in video.frames
             ]
-        # end if
 
         return video
-    # end flip
 
     def volume(self, factor: float, inplace: bool = False) -> Self:
         """
@@ -439,16 +403,13 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         if video.audio is None:
             raise ValueError("Video has no audio object.")
-        # end if
 
         video._audio = video.audio.volume(factor=factor, inplace=inplace)
 
         return video
-    # end volume
 
     def speed(self, factor: float, inplace: bool = False) -> Self:
         """
@@ -465,12 +426,10 @@ class Video:
 
         else:
             video = self.copy()
-        # end if
 
         video.fps *= factor
 
         return video
-    # end speed
 
     def load_frames_generator(
             self,
@@ -494,13 +453,11 @@ class Video:
 
         if silent is None:
             silent = self.silent
-        # end if
 
         path = path or self.source
 
         if path is None:
             raise ValueError("No path specified.")
-        # end if
 
         path = str(path)
 
@@ -524,24 +481,19 @@ class Video:
 
         if start != 0:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start)
-        # end if
 
         for i in iterations:
             if i == end:
                 break
-            # end if
 
             if step != 1:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, i)
-            # end if
 
             _, frame = cap.read()
 
             yield cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # end for
 
         cap.release()
-    # end load_frames_generator
 
     def load_frames(
             self,
@@ -567,7 +519,6 @@ class Video:
                 start=start, end=end, step=step
             )
         )
-    # end load_frames
 
     def load_audio(
             self,
@@ -591,7 +542,6 @@ class Video:
             path=path, silent=silent,
             start=start, end=end, step=step
         )
-    # end load_audio
 
     @classmethod
     def load(
@@ -622,7 +572,6 @@ class Video:
 
         if audio is None:
             audio = True
-        # end if
 
         path = str(path)
 
@@ -652,10 +601,8 @@ class Video:
                 path=path, silent=silent,
                 start=start, end=end or length, step=step
             )
-        # end if
 
         return video
-    # end load
 
     def save(
             self,
@@ -673,13 +620,11 @@ class Video:
 
         if audio is None and isinstance(self.audio, Audio):
             audio = True
-        # end if
 
         path = path or self.destination
 
         if path is None:
             raise ValueError("No path specified.")
-        # end if
 
         path = str(path)
 
@@ -692,7 +637,6 @@ class Video:
                         "Audio object is not defined. Make sure audio "
                         "data is loaded before attempting to save it."
                     )
-                # end if
 
                 self.audio: Audio
 
@@ -704,20 +648,16 @@ class Video:
 
                 # noinspection PyProtectedMember
                 audio_clip = audio._audio
-            # end if
 
             video_clip = video_clip.set_audio(audio_clip)
-        # end if
 
         if location := Path(path).parent:
             os.makedirs(location, exist_ok=True)
-        # end if
 
         video_clip.write_videofile(
             path, fps=self.fps, verbose=False, logger=None
         )
         video_clip.close()
-    # end save
 
     def save_frames(self, path: str | Path = None) -> None:
         """
@@ -727,7 +667,6 @@ class Video:
         """
 
         self.save(path=path, audio=False)
-    # end save
 
     def copy(self) -> Self:
         """Creates a copy of the data."""
@@ -741,7 +680,6 @@ class Video:
         )
 
         return video
-    # end copy
 
     def inherit(self, video: Self) -> None:
         """
@@ -757,7 +695,6 @@ class Video:
 
         elif None not in (self.audio, video.audio):
             self.audio.inherit(video.audio)
-        # end if
 
         self.fps = video.fps
         self.width = video.width
@@ -765,5 +702,3 @@ class Video:
         self.source = video.source
         self.destination = video.destination
         self.silent = video.silent
-    # end inherit
-# end Video

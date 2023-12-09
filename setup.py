@@ -46,8 +46,6 @@ def main() -> None:
             "Operating System :: OS Independent"
         ]
     )
-# end main
 
 if __name__ == "__main__":
     main()
-# end if
