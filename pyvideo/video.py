@@ -672,7 +672,7 @@ class Video:
         """Creates a copy of the data."""
 
         video = Video(
-            frames=self.frames.copy(),
+            frames=[frame.copy() for frame in self.frames],
             audio=(self.audio.copy() if isinstance(self.audio, Audio) else None),
             fps=self.fps, width=self.width, height=self.height,
             source=self.source, destination=self.destination,
@@ -688,7 +688,7 @@ class Video:
         :param video: The source video object.
         """
 
-        self.frames = video.frames.copy()
+        self.frames = [frame.copy() for frame in video.frames]
 
         if (self.audio is None) and (video.audio is not None):
             self.audio = video.audio.copy()

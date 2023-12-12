@@ -396,7 +396,7 @@ class Audio:
         """Creates a copy of the data."""
 
         audio = Audio(
-            frames=self.frames.copy(),
+            frames=[frame.copy() for frame in self.frames],
             fps=self.fps, source=self.source,
             destination=self.destination,
             silent=self.silent,
@@ -407,18 +407,18 @@ class Audio:
 
         return audio
 
-    def inherit(self, video: Self) -> None:
+    def inherit(self, audio: Self) -> None:
         """
-        Inherits the data from the given video.
+        Inherits the data from the given audio.
 
-        :param video: The source video object.
+        :param audio: The source audio object.
         """
 
-        self.frames = video.frames.copy()
-        self._audio = video._audio.copy()
+        self.frames = [frame.copy() for frame in audio.frames]
+        self._audio = audio._audio.copy()
 
-        self.source = video.source
-        self.destination = video.destination
-        self.silent = video.silent
+        self.source = audio.source
+        self.destination = audio.destination
+        self.silent = audio.silent
 
         self._update_audio()
