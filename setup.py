@@ -23,8 +23,8 @@ def main() -> None:
         include=[],
         requirements="requirements.txt",
         dev_requirements="requirements-dev.txt",
-        name='pyvideoio',
-        version='1.2.4',
+        name='python-video',
+        version='0.0.0',
         description=(
             "A lightweight module for simple "
             "handling of video frames and audio."

@@ -2,40 +2,31 @@
 
 > A lightweight module for simple handling of video frames and audio.
 
-first of all
-------------
+## Installation
+```
+pip install python-video
+```
 
-#### specifics:
+## example
+```python
+from pyvideo import Video
 
-- writen and owned by: Shahaf Frank-Shapir
-- all the rights are saved for: Shahaf Frank-Shapir
-- programming languages: python 3.9.12 (100%)
+SOURCE = "media/videos/input/milo.mp4"
+DESTINATION = "media/videos/output/milo.mp4"
 
-before we start
----------------
+video = Video.load(SOURCE)
 
-#### description:
+video = (
+  video.
+  copy().
+  cut(start=100).
+  crop(upper_left=(0, 0), lower_right=(368, 656)).
+  rescale(factor=0.75).
+  color(contrast=1.25, brightness=0.75).
+  volume(factor=5.5).
+  speed(factor=1.5).
+  flip(horizontally=True)
+)
 
-- visit the docs to learn more about this project and how to develop with it.
-
-#### dependencies:
-
-- opening:
-  For this is a complex program, which uses a lot of modules, there are required dependencies needed
-  in order to run the program. keep in mined the program was writen in python 3.9, so any python version lower
-  than 3.9 might not work properly.
-
-- install app dependencies by writing the "-r" option to install the requirements
-  writen in a file, and write the following line in the project directory:
-````
-pip install -r requirements.txt
-````
-
-run a test
------------
-
-#### run from windows command line (inside the project directory)
-- run with python by writing to the command line in the project directory:
-````
-python test.py
-````
+video.save(DESTINATION)
+```
