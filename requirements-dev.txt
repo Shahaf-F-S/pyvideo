@@ -1,8 +1,0 @@
-pdoc3
-twine
-pytest
-
-numpy
-opencv-python
-moviepy
-tqdm
