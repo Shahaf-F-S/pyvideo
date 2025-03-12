@@ -9,9 +9,11 @@ from tqdm import tqdm
 import cv2
 from moviepy.editor import AudioFileClip, AudioClip
 
+
 __all__ = [
     "Audio"
 ]
+
 
 class Audio:
     """A class to represent data of audio file or audio of video file."""
@@ -25,7 +27,7 @@ class Audio:
             destination: str | Path = None,
             silent: bool = True,
             frames: list[np.ndarray] = None,
-            audio: AudioClip = None
+            audio: AudioFileClip = None
     ) -> None:
         """
         Defines the attributes of a video.
@@ -38,25 +40,18 @@ class Audio:
         :param audio: The base audio object.
         """
 
-        if silent is None:
-            silent = self.SILENT
-
-        if frames is None:
-            frames = []
-
         self._fps = fps
 
         self.source = source
         self.destination = destination
 
-        self.silent = silent
-
-        self.frames = frames
+        self.silent = self.SILENT if silent is None else silent
+        self.frames = [] if frames is None else frames
 
         self._audio: AudioFileClip | None = audio
 
     @property
-    def length(self) -> float:
+    def length(self) -> int:
         """
         Returns the amount of frames in the video.
 
@@ -73,7 +68,17 @@ class Audio:
         :return: The int amount of time.
         """
 
-        return round(self.length / self._fps, 12)
+        return round(self.length / self.fps, 12)
+
+    @property
+    def span(self) -> float:
+        """
+        Returns the duration divided by the length.
+
+        :return: The int span of the data.
+        """
+
+        return 1 / self.fps
 
     @property
     def fps(self) -> float:
@@ -98,8 +103,8 @@ class Audio:
         self._fps = value
 
         if isinstance(self._audio, AudioClip):
-            self._audio.fps *= (value / before)
-            self._audio.duration = round(self.length / self._fps, 12)
+            self._audio.fps *= (self.fps / before)
+            self._audio.duration = self.duration
 
     def time_frame(self) -> list[float]:
         """
@@ -108,10 +113,7 @@ class Audio:
         :return: The list of time points.
         """
 
-        return [
-            round(i * (self.duration / len(self.frames)), 12)
-            for i in range(1, len(self.frames) + 1)
-        ]
+        return [round(i * self.span, 12) for i in range(1, self.length + 1)]
 
     def cut(
             self,
@@ -131,11 +133,7 @@ class Audio:
         :return: The modified video object.
         """
 
-        if inplace:
-            audio = self
-
-        else:
-            audio = self.copy()
+        audio = self if inplace else self.copy()
 
         start = start or 0
         end = end or audio.length
@@ -145,8 +143,8 @@ class Audio:
             audio.frames[:] = audio.frames[start:end:step]
 
         audio._audio = audio._audio.subclip(
-            t_start=round(start * (self.duration / len(self.frames)), 12),
-            t_end=round(end * (self.duration / len(self.frames)), 12)
+            t_start=round(start * self.span, 12),
+            t_end=round(end * self.span, 12)
         )
 
         audio._update_audio()
@@ -197,11 +195,7 @@ class Audio:
         :return: The changes audio object.
         """
 
-        if inplace:
-            audio = self
-
-        else:
-            audio = self.copy()
+        audio = self if inplace else self.copy()
 
         audio.frames[:] = [frame * factor for frame in audio.frames]
         audio._audio = audio._audio.fl(
@@ -220,11 +214,7 @@ class Audio:
         :return: The changes audio object.
         """
 
-        if inplace:
-            audio = self
-
-        else:
-            audio = self.copy()
+        audio = self if inplace else self.copy()
 
         audio.fps *= factor
 
@@ -250,9 +240,7 @@ class Audio:
         :return: The loaded file data.
         """
 
-        if silent is None:
-            silent = self.silent
-
+        silent = self.silent if silent is None else silent
         path = path or self.source
 
         if path is None:

@@ -13,9 +13,11 @@ from moviepy.editor import ImageSequenceClip
 
 from pyvideo.audio import Audio
 
+
 __all__ = [
     "Video"
 ]
+
 
 class Video:
     """A class to contain video metadata."""
@@ -46,12 +48,6 @@ class Video:
         :param audio: The list of audio data.
         """
 
-        if silent is None:
-            silent = self.SILENT
-
-        if frames is None:
-            frames = []
-
         self._fps = fps
         self.width = width
         self.height = height
@@ -59,9 +55,9 @@ class Video:
         self.source = source
         self.destination = destination
 
-        self.silent = silent
+        self.silent = self.SILENT if silent is None else silent
 
-        self.frames = frames
+        self.frames = [] if frames is None else frames
         self._audio = audio
 
         if self.frames:
@@ -115,6 +111,16 @@ class Video:
         return round(self.length / self.fps, 12)
 
     @property
+    def span(self) -> float:
+        """
+        Returns the duration divided by the length.
+
+        :return: The int span of the data.
+        """
+
+        return 1 / self.fps
+
+    @property
     def size(self) -> tuple[int, int]:
         """
         Returns the size of each frame in the video.
@@ -154,10 +160,7 @@ class Video:
 
         if any(
             value1 != value2 for value1, value2 in
-            zip(
-                (self.fps, self.length),
-                (value.fps, value.length)
-            )
+            zip((self.fps, self.length), (value.fps, value.length))
         ):
             raise ValueError(
                 "Audio object must have the exact same "
@@ -174,10 +177,7 @@ class Video:
         :return: The list of time points.
         """
 
-        return [
-            i * (self.duration / len(self.frames))
-            for i in range(1, len(self.frames) + 1)
-        ]
+        return [round(i * self.span, 12) for i in range(1, len(self.frames) + 1)]
 
     def cut(
             self,
@@ -197,11 +197,7 @@ class Video:
         :return: The modified video object.
         """
 
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         start = start or 0
         end = end or self.length
@@ -226,9 +222,7 @@ class Video:
         :return: The modified video object.
         """
 
-        return self.resize(
-            size=(self.width, self.height), inplace=inplace
-        )
+        return self.resize(size=(self.width, self.height), inplace=inplace)
 
     def resize(self, size: tuple[int, int], inplace: bool = False) -> Self:
         """
@@ -240,15 +234,9 @@ class Video:
         :return: The modified video object.
         """
 
-        if inplace:
-            video = self
+        video = self if inplace else self.copy()
 
-        else:
-            video = self.copy()
-
-        video.frames[:] = [
-            cv2.resize(frame, size) for frame in video.frames
-        ]
+        video.frames[:] = [cv2.resize(frame, size) for frame in video.frames]
         video.width = size[0]
         video.height = size[1]
 
@@ -284,11 +272,7 @@ class Video:
         :return: The modified video object.
         """
 
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         width = lower_right[0] - upper_left[0]
         height = lower_right[1] - upper_left[1]
@@ -334,17 +318,10 @@ class Video:
         :return: The modified video object.
         """
 
-        if contrast is None:
-            contrast = 1
+        contrast = 1 if contrast is None else contrast
+        brightness = 1 if brightness is None else brightness
 
-        if brightness is None:
-            brightness = 1
-
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         video.frames[:] = [
             cv2.convertScaleAbs(
@@ -370,21 +347,13 @@ class Video:
         :return: The modified video object.
         """
 
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         if vertically:
-            video.frames[:] = [
-                cv2.flip(frame, 0) for frame in video.frames
-            ]
+            video.frames[:] = [cv2.flip(frame, 0) for frame in video.frames]
 
         if horizontally:
-            video.frames[:] = [
-                cv2.flip(frame, 1) for frame in video.frames
-            ]
+            video.frames[:] = [cv2.flip(frame, 1) for frame in video.frames]
 
         return video
 
@@ -398,11 +367,7 @@ class Video:
         :return: The changes audio object.
         """
 
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         if video.audio is None:
             raise ValueError("Video has no audio object.")
@@ -421,11 +386,7 @@ class Video:
         :return: The changes video object.
         """
 
-        if inplace:
-            video = self
-
-        else:
-            video = self.copy()
+        video = self if inplace else self.copy()
 
         video.fps *= factor
 
@@ -451,9 +412,7 @@ class Video:
         :return: The loaded file data.
         """
 
-        if silent is None:
-            silent = self.silent
-
+        silent = self.silent if silent is None else silent
         path = path or self.source
 
         if path is None:
@@ -691,9 +650,11 @@ class Video:
         self.frames = [frame.copy() for frame in video.frames]
 
         if (self.audio is None) and (video.audio is not None):
+            # noinspection PyUnresolvedReferences
             self.audio = video.audio.copy()
 
         elif None not in (self.audio, video.audio):
+            # noinspection PyTypeChecker
             self.audio.inherit(video.audio)
 
         self.fps = video.fps
