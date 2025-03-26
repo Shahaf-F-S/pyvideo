@@ -7,7 +7,7 @@ from typing import ClassVar, Self, Generator, Iterable
 import numpy as np
 from tqdm import tqdm
 import cv2
-from moviepy.editor import AudioFileClip, AudioClip
+from moviepy import AudioFileClip, AudioClip
 
 
 __all__ = [
@@ -27,6 +27,7 @@ class Audio:
             destination: str | Path = None,
             silent: bool = True,
             frames: list[np.ndarray] = None,
+            resolution: int = 12,
             audio: AudioFileClip = None
     ) -> None:
         """
@@ -37,10 +38,12 @@ class Audio:
         :param destination: The destination file path.
         :param silent: The value to silent output.
         :param frames: The list of frames.
+        :param resolution: The accuracy of floating point numbers.
         :param audio: The base audio object.
         """
 
         self._fps = fps
+        self.resolution = resolution
 
         self.source = source
         self.destination = destination
@@ -68,7 +71,7 @@ class Audio:
         :return: The int amount of time.
         """
 
-        return round(self.length / self.fps, 12)
+        return round(self.length / self.fps, self.resolution)
 
     @property
     def span(self) -> float:
@@ -113,7 +116,10 @@ class Audio:
         :return: The list of time points.
         """
 
-        return [round(i * self.span, 12) for i in range(1, self.length + 1)]
+        return [
+            round(i * self.span, self.resolution)
+            for i in range(1, self.length + 1)
+        ]
 
     def cut(
             self,
@@ -142,9 +148,9 @@ class Audio:
         if audio.frames:
             audio.frames[:] = audio.frames[start:end:step]
 
-        audio._audio = audio._audio.subclip(
-            t_start=round(start * self.span, 12),
-            t_end=round(end * self.span, 12)
+        audio._audio = audio._audio.subclipped(
+            start_time=round(start * self.span, self.resolution),
+            end_time=round(end * self.span, self.resolution)
         )
 
         audio._update_audio()
@@ -198,7 +204,7 @@ class Audio:
         audio = self if inplace else self.copy()
 
         audio.frames[:] = [frame * factor for frame in audio.frames]
-        audio._audio = audio._audio.fl(
+        audio._audio = audio._audio.transform(
             lambda gf, t: gf(t) * factor, keep_duration=True
         )
 
@@ -273,12 +279,13 @@ class Audio:
         frames = []
 
         for i in iterations:
+            # noinspection PyTypeChecker
             frame = self._audio.get_frame(values[i])
             frames.append(frame)
 
             yield frame
 
-        self._audio.reader.close_proc()
+        self._audio.reader.close()
 
         self.source = path
 

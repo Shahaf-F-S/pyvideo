@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 from tqdm import tqdm
-from moviepy.editor import ImageSequenceClip
+from moviepy import ImageSequenceClip
 
 from pyvideo.audio import Audio
 
@@ -33,6 +33,7 @@ class Video:
             destination: str | Path = None,
             silent: bool = True,
             frames: list[np.ndarray] = None,
+            resolution: int = 12,
             audio: Audio = None
     ) -> None:
         """
@@ -51,6 +52,7 @@ class Video:
         self._fps = fps
         self.width = width
         self.height = height
+        self.resolution = resolution
 
         self.source = source
         self.destination = destination
@@ -108,7 +110,7 @@ class Video:
         :return: The int amount of time.
         """
 
-        return round(self.length / self.fps, 12)
+        return round(self.length / self.fps, self.resolution)
 
     @property
     def span(self) -> float:
@@ -170,14 +172,34 @@ class Video:
 
         self._audio = value
 
-    def time_frame(self) -> list[float]:
+    @staticmethod
+    def _gen[T](values: Iterable[T], gen: bool) -> Generator[T, ..., list[T]]:
+        if gen:
+            frames = []
+
+            for frame in values:
+                frames.append(frame)
+
+                yield frame
+
+        else:
+            frames = list(values)
+
+        return frames
+
+    def time_frame(self, gen: bool = False) -> Generator[float, ..., list[float]]:
         """
         Returns a list of the time points.
 
         :return: The list of time points.
         """
 
-        return [round(i * self.span, 12) for i in range(1, len(self.frames) + 1)]
+        return self._gen(
+            (
+                round(i * self.span, self.resolution)
+                for i in range(1, len(self.frames) + 1)
+            ), gen=gen
+        )
 
     def cut(
             self,
@@ -608,14 +630,12 @@ class Video:
                 # noinspection PyProtectedMember
                 audio_clip = audio._audio
 
-            video_clip = video_clip.set_audio(audio_clip)
+            video_clip.audio = audio_clip
 
         if location := Path(path).parent:
             os.makedirs(location, exist_ok=True)
 
-        video_clip.write_videofile(
-            path, fps=self.fps, verbose=False, logger=None
-        )
+        video_clip.write_videofile(path, fps=self.fps, logger=None)
         video_clip.close()
 
     def save_frames(self, path: str | Path = None) -> None:
