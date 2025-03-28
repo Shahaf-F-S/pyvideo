@@ -2,13 +2,11 @@
 
 import os
 from pathlib import Path
-from typing import Self, Generator, Iterable, Callable
+from typing import Self, Generator, Iterable
 
 import numpy as np
 import cv2
 from moviepy import AudioFileClip, AudioArrayClip
-
-from pyvideo.utils import ManagedModel
 
 
 __all__ = [
@@ -16,7 +14,7 @@ __all__ = [
 ]
 
 
-class Audio(ManagedModel[np.ndarray]):
+class Audio:
     """A class to represent data of audio file or audio of video file."""
 
     def __init__(
@@ -45,8 +43,6 @@ class Audio(ManagedModel[np.ndarray]):
         self.destination = destination
 
         self.frames = [] if frames is None else frames
-
-        self.reset_tasks()
 
     @property
     def length(self) -> int:
@@ -77,12 +73,6 @@ class Audio(ManagedModel[np.ndarray]):
         """
 
         return 1 / self.fps
-
-    def data(self) -> Iterable[np.ndarray]:
-        return iter(self.frames)
-
-    def all(self) -> Self:
-        return super().all()
 
     def time_frame(self) -> list[float]:
         """
@@ -122,44 +112,6 @@ class Audio(ManagedModel[np.ndarray]):
 
         return self
 
-    def select(
-        self,
-        start: int = None,
-        end: int = None,
-        step: int = None,
-        selector: Callable[[int, np.ndarray], bool] = None
-    ) -> Self:
-        """
-        Cuts the video.
-
-        :param start: The starting index for the frames.
-        :param end: The ending index for the frames.
-        :param step: The step for the frames.
-        :param selector: The function to select frames.
-        :return: The modified video object.
-        """
-
-        start = start or 0
-        end = end or self.length
-        step = step or 1
-
-        if not self._manager.is_empty:
-            raise ValueError(
-                "This error prevents the discarding of existing tasks "
-                "pending for the object. Selecting overrides existing tasks. "
-                "If this is intended, use the empty method to empty the "
-                "manager in advance."
-            )
-
-        self.reset_tasks(
-            (
-                frame for i, frame in enumerate(self.frames[start:end:step])
-                if selector is None or selector(i, frame)
-            )
-        )
-
-        return self
-
     def volume(self, factor: float) -> Self:
         """
         Changes the volume of the audio.
@@ -169,15 +121,7 @@ class Audio(ManagedModel[np.ndarray]):
         :return: The changes audio object.
         """
 
-        frames = []
-
-        def end():
-            self.frames[:] = frames
-
-        self._manager.load(
-            repeat=lambda frame: frame * factor,
-            end=end, collector=frames
-        )
+        self.frames[:] = np.array(self.frames) * factor
 
         return self
 
