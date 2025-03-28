@@ -2,12 +2,13 @@
 
 import os
 from pathlib import Path
-from typing import ClassVar, Self, Generator, Iterable
+from typing import Self, Generator, Iterable, Callable
 
 import numpy as np
-from tqdm import tqdm
 import cv2
-from moviepy import AudioFileClip, AudioClip
+from moviepy import AudioFileClip, AudioArrayClip
+
+from pyvideo.utils import ManagedModel
 
 
 __all__ = [
@@ -15,20 +16,16 @@ __all__ = [
 ]
 
 
-class Audio:
+class Audio(ManagedModel[np.ndarray]):
     """A class to represent data of audio file or audio of video file."""
 
-    SILENT: ClassVar[bool] = True
-
     def __init__(
-            self,
-            fps: float,
-            source: str | Path = None,
-            destination: str | Path = None,
-            silent: bool = True,
-            frames: list[np.ndarray] = None,
-            resolution: int = 12,
-            audio: AudioFileClip = None
+        self,
+        fps: float,
+        source: str | Path = None,
+        destination: str | Path = None,
+        frames: list[np.ndarray] = None,
+        resolution: int = 12
     ) -> None:
         """
         Defines the attributes of a video.
@@ -36,22 +33,20 @@ class Audio:
         :param fps: The frames per second rate.
         :param source: The source file path.
         :param destination: The destination file path.
-        :param silent: The value to silent output.
         :param frames: The list of frames.
         :param resolution: The accuracy of floating point numbers.
-        :param audio: The base audio object.
         """
+        super().__init__()
 
-        self._fps = fps
+        self.fps = fps
         self.resolution = resolution
 
         self.source = source
         self.destination = destination
 
-        self.silent = self.SILENT if silent is None else silent
         self.frames = [] if frames is None else frames
 
-        self._audio: AudioFileClip | None = audio
+        self.reset_tasks()
 
     @property
     def length(self) -> int:
@@ -83,31 +78,11 @@ class Audio:
 
         return 1 / self.fps
 
-    @property
-    def fps(self) -> float:
-        """
-        Returns the frame per second rate of the video.
+    def data(self) -> Iterable[np.ndarray]:
+        return iter(self.frames)
 
-        :return: The video speed.
-        """
-
-        return self._fps
-
-    @fps.setter
-    def fps(self, value: float) -> None:
-        """
-        Returns the frame per second rate of the video.
-
-        :param value: The video speed.
-        """
-
-        before = self._fps
-
-        self._fps = value
-
-        if isinstance(self._audio, AudioClip):
-            self._audio.fps *= (self.fps / before)
-            self._audio.duration = self.duration
+    def all(self) -> Self:
+        return super().all()
 
     def time_frame(self) -> list[float]:
         """
@@ -116,17 +91,19 @@ class Audio:
         :return: The list of time points.
         """
 
-        return [
-            round(i * self.span, self.resolution)
-            for i in range(1, self.length + 1)
-        ]
+        return [self.time(i) for i in range(self.length)]
+
+    def time(self, index: int) -> float:
+        return round(index * self.span, self.resolution)
+
+    def index(self, time: float) -> int:
+        return np.round(time / self.span).astype(int)
 
     def cut(
             self,
             start: int = None,
             end: int = None,
-            step: int = None,
-            inplace: bool = False
+            step: int = None
     ) -> Self:
         """
         Cuts the video.
@@ -134,119 +111,105 @@ class Audio:
         :param start: The starting index for the frames.
         :param end: The ending index for the frames.
         :param step: The step for the frames.
-        :param inplace: The value to set changes in the object.
-
         :return: The modified video object.
         """
 
-        audio = self if inplace else self.copy()
-
         start = start or 0
-        end = end or audio.length
+        end = end or self.length
         step = step or 1
 
-        if audio.frames:
-            audio.frames[:] = audio.frames[start:end:step]
+        self.frames[:] = self.frames[start:end:step]
 
-        audio._audio = audio._audio.subclipped(
-            start_time=round(start * self.span, self.resolution),
-            end_time=round(end * self.span, self.resolution)
+        return self
+
+    def select(
+        self,
+        start: int = None,
+        end: int = None,
+        step: int = None,
+        selector: Callable[[int, np.ndarray], bool] = None
+    ) -> Self:
+        """
+        Cuts the video.
+
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
+        :param selector: The function to select frames.
+        :return: The modified video object.
+        """
+
+        start = start or 0
+        end = end or self.length
+        step = step or 1
+
+        if not self._manager.is_empty:
+            raise ValueError(
+                "This error prevents the discarding of existing tasks "
+                "pending for the object. Selecting overrides existing tasks. "
+                "If this is intended, use the empty method to empty the "
+                "manager in advance."
+            )
+
+        self.reset_tasks(
+            (
+                frame for i, frame in enumerate(self.frames[start:end:step])
+                if selector is None or selector(i, frame)
+            )
         )
 
-        audio._update_audio()
+        return self
 
-        return audio
-
-    def _make_frame(self, t: float | np.ndarray) -> np.ndarray | Iterable[np.ndarray]:
-        """
-        Returns the frame or frames of audio for the given time.
-
-        :param t: The time of the audio.
-
-        :return: The frame or frames of audio.
-        """
-
-        _frames = np.array(self.frames)
-
-        if isinstance(t, np.ndarray):
-            array_indexes = (self.fps * t).astype(int)
-            in_array = (array_indexes > 0) & (array_indexes < len(_frames))
-            result = np.zeros((len(t), 2))
-            result[in_array] = _frames[array_indexes[in_array]]
-
-            return result
-
-        else:
-            # noinspection PyShadowingNames
-            i = int(self.fps * t)
-
-            if i < 0 or i >= len(_frames):
-                return 0 * _frames[0]
-
-            else:
-                return _frames[i]
-
-    def _update_audio(self) -> None:
-        """Updates the audio data of the object."""
-
-        self._audio.reader.make_frame = self._make_frame
-
-    def volume(self, factor: float, inplace: bool = False) -> Self:
+    def volume(self, factor: float) -> Self:
         """
         Changes the volume of the audio.
 
         :param factor: The change value.
-        :param inplace: The value to save changes to the object.
 
         :return: The changes audio object.
         """
 
-        audio = self if inplace else self.copy()
+        frames = []
 
-        audio.frames[:] = [frame * factor for frame in audio.frames]
-        audio._audio = audio._audio.transform(
-            lambda gf, t: gf(t) * factor, keep_duration=True
+        def end():
+            self.frames[:] = frames
+
+        self._manager.load(
+            repeat=lambda frame: frame * factor,
+            end=end, collector=frames
         )
 
-        return audio
+        return self
 
-    def speed(self, factor: float, inplace: bool = False) -> Self:
+    def speed(self, factor: float) -> Self:
         """
         Changes the speed of the playing.
 
         :param factor: The speed factor.
-        :param inplace: The value to save changes to the object.
 
         :return: The changes audio object.
         """
 
-        audio = self if inplace else self.copy()
+        self.fps *= factor
 
-        audio.fps *= factor
+        return self
 
-        return audio
-
-    def load_frames_generator(
-            self,
-            path: str | Path = None,
-            silent: bool = None,
-            start: int = None,
-            end: int = None,
-            step: int = None
+    def read_frames(
+        self,
+        path: str | Path = None,
+        chunk_size: int | None = 50000
     ) -> Generator[np.ndarray, None, None]:
         """
         Loads the audio data from the file.
 
         :param path: The path to the source file.
-        :param silent: The value for no output.
-        :param start: The starting index for the frames.
-        :param end: The ending index for the frames.
-        :param step: The step for the frames.
+        :param chunk_size: The chunk size of each read.
 
         :return: The loaded file data.
         """
 
-        silent = self.silent if silent is None else silent
+        chunk_size = 50000 if chunk_size is None else chunk_size
+
         path = path or self.source
 
         if path is None:
@@ -254,86 +217,54 @@ class Audio:
 
         path = str(path)
 
-        self._audio = AudioFileClip(path)
-
-        start = start or 0
-        end = end or self.length or int(
-            self._audio.duration * self._audio.fps
-        )
-        step = step or 1
-
-        iterations = range(start, end, step)
-
-        iterations = tqdm(
-            iterations,
-            bar_format=(
-                "{l_bar}{bar}| {n_fmt}/{total_fmt} "
-                "[{remaining}s, {rate_fmt}{postfix}]"
-            ),
-            desc=f"Loading audio from {Path(path)}",
-            total=len(iterations)
-        ) if not silent else iterations
-
-        values = np.arange(0, end, 1.0 / self.fps)
+        audio = AudioFileClip(path)
 
         frames = []
 
-        for i in iterations:
-            # noinspection PyTypeChecker
-            frame = self._audio.get_frame(values[i])
-            frames.append(frame)
+        for chunk in audio.iter_chunks(chunksize=chunk_size):
+            for frame in chunk:
+                yield frame
 
-            yield frame
+                frames.append(frame)
 
-        self._audio.reader.close()
+        self.fps = audio.fps
+
+        audio.close()
 
         self.source = path
 
     def load_frames(
-            self,
-            path: str | Path,
-            silent: bool = None,
-            start: int = None,
-            end: int = None,
-            step: int = None
+        self,
+        path: str | Path,
+        chunk_size: int | None = 50000
     ) -> None:
         """
         Loads the video data from the file.
 
         :param path: The path to the source file.
-        :param silent: The value for no output.
-        :param start: The starting index for the frames.
-        :param end: The ending index for the frames.
-        :param step: The step for the frames.
+        :param chunk_size: The chunk size of each read.
         """
 
-        self.frames.extend(
-            self.load_frames_generator(
-                path=path, silent=silent,
-                start=start, end=end, step=step
-            )
-        )
-
-        self._update_audio()
+        self.frames.extend(self.read_frames(path=path, chunk_size=chunk_size))
 
     @classmethod
     def load(
-            cls,
-            path: str | Path,
-            destination: str | Path = None,
-            silent: bool = None,
-            frames: Iterable[np.ndarray] = None,
-            start: int = None,
-            end: int = None,
-            step: int = None
+        cls,
+        path: str | Path,
+        destination: str | Path = None,
+        frames: Iterable[np.ndarray] = None,
+        chunk_size: int | None = 50000,
+        start: int = None,
+        end: int = None,
+        step: int = None
     ) -> Self:
         """
         Loads the data from the file.
 
         :param path: The path to the source file.
         :param destination: The destination to set for the video object.
-        :param silent: The value for no output.
         :param frames: The frames to insert to the video data object.
+        :param chunk_size: The chunk size of each read.
         :param start: The starting index for the frames.
         :param end: The ending index for the frames.
         :param step: The step for the frames.
@@ -346,19 +277,16 @@ class Audio:
         cap = cv2.VideoCapture(path)
 
         fps = float(cap.get(cv2.CAP_PROP_FPS))
-        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        frames = list(frames or [])
+        frames = [] if frames is None else frames
 
         audio = cls(
             frames=frames, fps=fps,
             source=path, destination=destination
         )
 
-        audio.load_frames(
-            path=path, silent=silent,
-            start=start, end=end or length, step=step
-        )
+        audio.load_frames(path=path, chunk_size=chunk_size)
+        audio.cut(start=start, end=end, step=step)
 
         return audio
 
@@ -376,44 +304,24 @@ class Audio:
 
         path = str(path)
 
-        codec = 'pcm_s16le' if path.endswith(".avi") else None
-
         if location := Path(path).parent:
             os.makedirs(location, exist_ok=True)
 
-        self._audio.write_audiofile(
-            path, fps=44100, codec=codec, verbose=False, logger=None
-        )
+        audio = self.moviepy()
+        audio.write_audiofile(path, logger=None)
+        audio.close()
 
         self.destination = path
+
+    def moviepy(self) -> AudioArrayClip:
+        return AudioArrayClip(np.array(self.frames), fps=self.fps)
 
     def copy(self) -> Self:
         """Creates a copy of the data."""
 
-        audio = Audio(
+        return Audio(
             frames=[frame.copy() for frame in self.frames],
-            fps=self.fps, source=self.source,
-            destination=self.destination,
-            silent=self.silent,
-            audio=self._audio.copy()
+            fps=self.fps,
+            source=self.source,
+            destination=self.destination
         )
-
-        audio._update_audio()
-
-        return audio
-
-    def inherit(self, audio: Self) -> None:
-        """
-        Inherits the data from the given audio.
-
-        :param audio: The source audio object.
-        """
-
-        self.frames = [frame.copy() for frame in audio.frames]
-        self._audio = audio._audio.copy()
-
-        self.source = audio.source
-        self.destination = audio.destination
-        self.silent = audio.silent
-
-        self._update_audio()
