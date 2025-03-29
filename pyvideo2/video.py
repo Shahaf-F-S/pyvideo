@@ -3,12 +3,14 @@
 import os
 from typing import Generator, Iterable, Self
 from pathlib import Path
+from dataclasses import dataclass
 
 import numpy as np
 import cv2
 from moviepy import ImageSequenceClip
 
-from pyvideo.audio import Audio
+from pyvideo2.audio import Audio
+from pyvideo2.action import TimedFrames
 
 
 __all__ = [
@@ -16,80 +18,23 @@ __all__ = [
 ]
 
 
-class Video:
+@dataclass
+class Video(TimedFrames):
     """A class to contain video metadata."""
 
-    def __init__(
-        self,
-        fps: float,
-        width: int = None,
-        height: int = None,
-        source: str | Path = None,
-        destination: str | Path = None,
-        frames: list[np.ndarray] = None,
-        resolution: int = 12,
-        audio: Audio = None
-    ) -> None:
-        """
-        Defines the attributes of a video.
+    audio: Audio = None
 
-        :param fps: The frames per second rate.
-        :param width: The width of each frame.
-        :param height: The height of each frame.
-        :param source: The source file path.
-        :param destination: The destination file path.
-        :param frames: The list of frames.
-        :param audio: The list of audio data.
-        """
-        super().__init__()
-
-        self.fps = fps
-        self.width = width
-        self.height = height
-        self.resolution = resolution
-
-        self.source = source
-        self.destination = destination
-
-        self.frames = [] if frames is None else frames
-        self.audio = audio
-
-        if self.frames:
-            if self.width is None:
-                self.width = self.frames[0].shape[1]
-
-            if self.height is None:
-                self.height = self.frames[0].shape[0]
+    def __post_init__(self):
+        if self.audio is not None:
+            self.children.append(self.audio)
 
     @property
-    def length(self) -> int:
-        """
-        Returns the amount of frames in the video.
-
-        :return: The int amount of frames.
-        """
-
-        return len(self.frames)
+    def width(self) -> int:
+        return self.frames[0].shape[1]
 
     @property
-    def duration(self) -> float:
-        """
-        Returns the amount of time in the video.
-
-        :return: The int amount of time.
-        """
-
-        return round(self.length / self.fps, self.resolution)
-
-    @property
-    def span(self) -> float:
-        """
-        Returns the duration divided by the length.
-
-        :return: The int span of the data.
-        """
-
-        return 1 / self.fps
+    def height(self) -> int:
+        return self.frames[0].shape[0]
 
     @property
     def size(self) -> tuple[int, int]:
@@ -121,67 +66,6 @@ class Video:
 
         return self.width / self.height
 
-    def time_frame(self) -> list[float]:
-        """
-        Returns a list of the time points.
-
-        :return: The list of time points.
-        """
-
-        return [self.time(i) for i in range(self.length)]
-
-    def time(self, index: int) -> float:
-        return round(index * self.span, self.resolution)
-
-    def index(self, time: float) -> int:
-        return round(time / self.span)
-
-    def cut(
-            self,
-            start: int = None,
-            end: int = None,
-            step: int = None
-    ) -> Self:
-        """
-        Cuts the video.
-
-        :param start: The starting index for the frames.
-        :param end: The ending index for the frames.
-        :param step: The step for the frames.
-
-        :return: The modified video object.
-        """
-
-        start = start or 0
-        end = end or self.length
-
-        self.frames[:] = self.frames[start:end:step or 1]
-
-        if isinstance(self.audio, Audio):
-            audio_start = self.audio.index(self.time(start))
-
-            audio_end = None
-            audio_step = None
-
-            if end != self.length:
-                audio_end = self.audio.index(self.time(end))
-
-            if step is not None:
-                audio_step = int(step * (1 / self.fps) * self.audio.fps)
-
-            self.audio.cut(start=audio_start, end=audio_end, step=audio_step)
-
-        return self
-
-    def fit(self) -> Generator[np.ndarray, ..., ...]:
-        """
-        Resizes the frames in the video.
-
-        :return: The modified video object.
-        """
-
-        yield from self.resize(size=(self.width, self.height))
-
     def resize(self, size: tuple[int, int]) -> Self:
         """
         Resizes the frames in the video.
@@ -191,10 +75,11 @@ class Video:
         :return: The modified video object.
         """
 
-        blob = cv2.dnn.blobFromImages(np.array(self.frames), scalefactor=1.0, size=size, swapRB=False, crop=False)
-        self.frames[:] = blob.transpose(0, 2, 3, 1)  # Rearrange to (batch, height, width, channels)
-
-        # self.frames[:] = np.array(self.frames).reshape((-1, *size, 3))
+        blob = cv2.dnn.blobFromImages(
+            np.array(self.frames),
+            scalefactor=1.0, size=size, swapRB=False, crop=False
+        )
+        self.frames[:] = blob.transpose(0, 2, 3, 1)
 
         return self
 
@@ -225,9 +110,9 @@ class Video:
         return self.resize(size=size)
 
     def crop(
-            self,
-            upper_left: tuple[int, int],
-            lower_right: tuple[int, int]
+        self,
+        upper_left: tuple[int, int],
+        lower_right: tuple[int, int]
     ) -> Self:
         """
         Crops the frames of the video.
@@ -261,14 +146,12 @@ class Video:
                 ] for frame in self.frames
             ]
 
-        self.width, self.height = width, height
-
         return self
 
     def color(
-            self,
-            contrast: float = None,
-            brightness: float = None
+        self,
+        contrast: float = None,
+        brightness: float = None
     ) -> Self:
         """
         Edits the color of the frames.
@@ -303,9 +186,9 @@ class Video:
         return self
 
     def flip(
-            self,
-            vertically: bool = None,
-            horizontally: bool = None
+        self,
+        vertically: bool = None,
+        horizontally: bool = None
     ) -> Self:
         """
         Flips the frames.
@@ -331,28 +214,12 @@ class Video:
 
         return self
 
-    def speed(self, factor: float) -> Self:
-        """
-        Changes the speed of the playing.
-
-        :param factor: The speed factor.
-
-        :return: The changes video object.
-        """
-
-        self.fps *= factor
-
-        if self.audio is not None:
-            self.audio.speed(factor)
-
-        return self
-
     def read_frames(
-            self,
-            path: str | Path = None,
-            start: int = None,
-            end: int = None,
-            step: int = None
+        self,
+        path: str | Path,
+        start: int = None,
+        end: int = None,
+        step: int = None
     ) -> Generator[np.ndarray, None, None]:
         """
         Loads the frames data from the file.
@@ -365,18 +232,11 @@ class Video:
         :return: The loaded file data.
         """
 
-        path = path or self.source
-
-        if path is None:
-            raise ValueError("No path specified.")
-
-        path = str(path)
-
         start = start or 0
         end = end or self.length
         step = step or 1
 
-        cap = cv2.VideoCapture(path)
+        cap = cv2.VideoCapture(str(path))
 
         if start != 0:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start)
@@ -395,11 +255,11 @@ class Video:
         cap.release()
 
     def load_frames(
-            self,
-            path: str | Path,
-            start: int = None,
-            end: int = None,
-            step: int = None
+        self,
+        path: str | Path,
+        start: int = None,
+        end: int = None,
+        step: int = None
     ) -> None:
         """
         Loads the video data from the file.
@@ -434,16 +294,14 @@ class Video:
         :param chunk_size: The chunk size of each read.
         """
 
-        self.audio = Audio.load(
-            path=path, chunk_size=chunk_size,
-            start=start, end=end, step=step
-        )
+        self.audio = Audio.load(path=path, chunk_size=chunk_size)
+
+        self.cut_child(self.audio, start=start, end=end, step=step)
 
     @classmethod
     def load(
         cls,
         path: str | Path,
-        destination: str | Path = None,
         frames: Iterable[np.ndarray] = None,
         audio: bool | Audio = True,
         chunk_size: int | None = 50000,
@@ -455,7 +313,6 @@ class Video:
         Loads the data from the file.
 
         :param path: The path to the source file.
-        :param destination: The destination to set for the video object.
         :param frames: The frames to insert to the video data object.
         :param audio: The audio object or the value to load the audio object.
         :param chunk_size: The chunk size of each read.
@@ -471,8 +328,6 @@ class Video:
         cap = cv2.VideoCapture(path)
 
         fps = float(cap.get(cv2.CAP_PROP_FPS))
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         frames = list(frames or [])
@@ -480,8 +335,7 @@ class Video:
         video = cls(
             frames=frames,
             audio=(audio if not isinstance(audio, bool) else None),
-            fps=fps, width=width, height=height,
-            source=path, destination=destination
+            fps=fps
         )
 
         video.load_frames(
@@ -497,9 +351,9 @@ class Video:
         return video
 
     def save(
-            self,
-            path: str | Path = None,
-            audio: bool | Audio = None
+        self,
+        path: str | Path,
+        audio: bool | Audio = None
     ) -> None:
         """
         Saves the video and audio into the file.
@@ -512,11 +366,6 @@ class Video:
 
         if audio is None and isinstance(self.audio, Audio):
             audio = True
-
-        path = path or self.destination
-
-        if path is None:
-            raise ValueError("No path specified.")
 
         path = str(path)
 
@@ -542,7 +391,7 @@ class Video:
         video_clip.close()
         video_clip.audio.close()
 
-    def save_frames(self, path: str | Path = None) -> None:
+    def save_frames(self, path: str | Path) -> None:
         """
         Saves the video and audio into the file.
 
@@ -557,6 +406,5 @@ class Video:
         return Video(
             frames=[frame.copy() for frame in self.frames],
             audio=(self.audio.copy() if isinstance(self.audio, Audio) else None),
-            fps=self.fps, width=self.width, height=self.height,
-            source=self.source, destination=self.destination
+            fps=self.fps
         )

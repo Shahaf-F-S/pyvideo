@@ -1,6 +1,6 @@
 # test.py
 
-from pyvideo import Video
+from pyvideo2 import Video
 
 SOURCE = "media/videos/input/milo.mp4"
 DESTINATION = "media/videos/output/milo.mp4"
