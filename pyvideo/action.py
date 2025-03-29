@@ -1,7 +1,7 @@
 # action.py
 
 from dataclasses import dataclass, field
-from typing import Self
+from typing import Self, Generator, Callable, Iterable
 
 import numpy as np
 
@@ -18,6 +18,12 @@ class TimedFrames:
     frames: list[np.ndarray] = field(default_factory=list)
     resolution: int = 12
     children: list["TimedFrames"] = field(default_factory=list)
+
+    def __iter__(self) -> Iterable[np.ndarray]:
+        return iter(self.frames)
+
+    def __len__(self) -> int:
+        return len(self.frames)
 
     @property
     def length(self) -> int:
@@ -137,3 +143,42 @@ class TimedFrames:
 
     def array(self) -> np.ndarray:
         return np.array(self.frames)
+
+
+@dataclass
+class Action[I, O]:
+
+    data: "TimedFrames | Action[..., I]"
+    transform: Callable[[I], O]
+    extractor: Callable[[object], Iterable[I]] = None
+
+    def __call__(self) -> Generator[O, ..., ...]:
+        data = self.data
+
+        if isinstance(data, Action):
+            data = data()
+
+        if self.extractor is not None:
+            data = self.extractor(data)
+
+        for value in data:
+            yield self.transform(value)
+
+#
+# @dataclass
+# class Frames(Action[TimedFrames, np.ndarray]):
+#
+#     data: TimedFrames
+#     deep: bool = False
+#     transform = lambda obj: obj.array()
+#
+#     def __post_init__(self):
+#         if self.extractor is None:
+#             self.extractor = lambda data: (
+#                 data, *(data.children if self.deep else ())
+#             )
+#
+# @dataclass
+# class Frame(Action[np.ndarray, np.ndarray]):
+#
+#     pass
