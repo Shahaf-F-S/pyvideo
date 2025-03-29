@@ -1,6 +1,6 @@
 # test.py
 
-from pyvideo import Audio
+from pyvideo2 import Audio
 
 SOURCE = "media/videos/input/milo.mp4"
 DESTINATION = "media/videos/output/milo.wav"

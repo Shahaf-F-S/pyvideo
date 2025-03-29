@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from typing import Self, Generator, Iterable
+from dataclasses import dataclass, field
 
 import numpy as np
 import cv2
@@ -14,35 +15,13 @@ __all__ = [
 ]
 
 
+@dataclass
 class Audio:
     """A class to represent data of audio file or audio of video file."""
 
-    def __init__(
-        self,
-        fps: float,
-        source: str | Path = None,
-        destination: str | Path = None,
-        frames: list[np.ndarray] = None,
-        resolution: int = 12
-    ) -> None:
-        """
-        Defines the attributes of a video.
-
-        :param fps: The frames per second rate.
-        :param source: The source file path.
-        :param destination: The destination file path.
-        :param frames: The list of frames.
-        :param resolution: The accuracy of floating point numbers.
-        """
-        super().__init__()
-
-        self.fps = fps
-        self.resolution = resolution
-
-        self.source = source
-        self.destination = destination
-
-        self.frames = [] if frames is None else frames
+    fps: float
+    frames: list[np.ndarray] = field(default_factory=list)
+    resolution: int = 12
 
     @property
     def length(self) -> int:
@@ -140,62 +119,74 @@ class Audio:
 
     def read_frames(
         self,
-        path: str | Path = None,
-        chunk_size: int | None = 50000
+        path: str | Path,
+        chunk_size: int | None = 50000,
+        start: int = None,
+        end: int = None,
+        step: int = None
     ) -> Generator[np.ndarray, None, None]:
         """
         Loads the audio data from the file.
 
         :param path: The path to the source file.
         :param chunk_size: The chunk size of each read.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
 
         :return: The loaded file data.
         """
 
         chunk_size = 50000 if chunk_size is None else chunk_size
 
-        path = path or self.source
-
-        if path is None:
-            raise ValueError("No path specified.")
-
-        path = str(path)
-
-        audio = AudioFileClip(path)
+        audio = AudioFileClip(str(path))
 
         frames = []
 
+        i = 0
+        iterations = iter(range(start, end, step))
+
         for chunk in audio.iter_chunks(chunksize=chunk_size):
             for frame in chunk:
-                yield frame
+                if i == next(iterations):
+                    yield frame
+                    frames.append(frame)
 
-                frames.append(frame)
+                i += 1
 
         self.fps = audio.fps
 
         audio.close()
 
-        self.source = path
-
     def load_frames(
         self,
         path: str | Path,
-        chunk_size: int | None = 50000
+        chunk_size: int | None = 50000,
+        start: int = None,
+        end: int = None,
+        step: int = None
     ) -> None:
         """
         Loads the video data from the file.
 
         :param path: The path to the source file.
         :param chunk_size: The chunk size of each read.
+        :param start: The starting index for the frames.
+        :param end: The ending index for the frames.
+        :param step: The step for the frames.
         """
 
-        self.frames.extend(self.read_frames(path=path, chunk_size=chunk_size))
+        self.frames.extend(
+            self.read_frames(
+                path=path, chunk_size=chunk_size,
+                start=start, end=end, step=step
+            )
+        )
 
     @classmethod
     def load(
         cls,
         path: str | Path,
-        destination: str | Path = None,
         frames: Iterable[np.ndarray] = None,
         chunk_size: int | None = 50000,
         start: int = None,
@@ -206,7 +197,6 @@ class Audio:
         Loads the data from the file.
 
         :param path: The path to the source file.
-        :param destination: The destination to set for the video object.
         :param frames: The frames to insert to the video data object.
         :param chunk_size: The chunk size of each read.
         :param start: The starting index for the frames.
@@ -216,32 +206,27 @@ class Audio:
         :return: The loaded file data.
         """
 
-        path = str(path)
-
-        cap = cv2.VideoCapture(path)
+        cap = cv2.VideoCapture(str(path))
 
         fps = float(cap.get(cv2.CAP_PROP_FPS))
 
         frames = [] if frames is None else frames
 
-        audio = cls(
-            frames=frames, fps=fps,
-            source=path, destination=destination
-        )
+        audio = cls(frames=frames, fps=fps)
 
-        audio.load_frames(path=path, chunk_size=chunk_size)
-        audio.cut(start=start, end=end, step=step)
+        audio.load_frames(
+            path=path, chunk_size=chunk_size,
+            start=start, end=end, step=step
+        )
 
         return audio
 
-    def save(self, path: str | Path = None) -> None:
+    def save(self, path: str | Path) -> None:
         """
         Saves the video and audio into the file.
 
         :param path: The saving path
         """
-
-        path = path or self.destination
 
         if path is None:
             raise ValueError("No path specified.")
@@ -255,17 +240,16 @@ class Audio:
         audio.write_audiofile(path, logger=None)
         audio.close()
 
-        self.destination = path
+    def array(self) -> np.ndarray:
+        return np.array(self.frames)
 
     def moviepy(self) -> AudioArrayClip:
-        return AudioArrayClip(np.array(self.frames), fps=self.fps)
+        return AudioArrayClip(self.array(), fps=self.fps)
 
     def copy(self) -> Self:
         """Creates a copy of the data."""
 
         return Audio(
             frames=[frame.copy() for frame in self.frames],
-            fps=self.fps,
-            source=self.source,
-            destination=self.destination
+            fps=self.fps
         )
