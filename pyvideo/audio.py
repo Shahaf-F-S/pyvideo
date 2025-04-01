@@ -4,35 +4,27 @@ import os
 from pathlib import Path
 from typing import Self, Generator, Iterable
 from dataclasses import dataclass
+from abc import ABCMeta
+from itertools import cycle
 
 import numpy as np
 import cv2
 from moviepy import AudioFileClip, AudioArrayClip
 
-from pyvideo.action import TimedFrames
+from pyvideo.base import TimedFrames, TimedFramesArray, TimedFramesList, action
 
 
 __all__ = [
-    "Audio"
+    "BaseAudio",
+    "AudioList",
+    "AudioArray",
+    "volume"
 ]
 
 
 @dataclass
-class Audio(TimedFrames):
+class BaseAudio(TimedFrames, metaclass=ABCMeta):
     """A class to represent data of audio file or audio of video file."""
-
-    def volume(self, factor: float) -> Self:
-        """
-        Changes the volume of the audio.
-
-        :param factor: The change value.
-
-        :return: The changes audio object.
-        """
-
-        self.frames[:] = np.array(self.frames) * factor
-
-        return self
 
     def read_frames(
         self,
@@ -52,11 +44,11 @@ class Audio(TimedFrames):
 
         audio = AudioFileClip(str(path))
 
+        self.fps = audio.fps
+
         for chunk in audio.iter_chunks(chunksize=chunk_size):
             for frame in chunk:
                 yield frame
-
-        self.fps = audio.fps
 
         audio.close()
 
@@ -72,9 +64,7 @@ class Audio(TimedFrames):
         :param chunk_size: The chunk size of each read.
         """
 
-        self.frames.extend(
-            self.read_frames(path=path, chunk_size=chunk_size)
-        )
+        self.set_frames(list(self.read_frames(path=path, chunk_size=chunk_size)))
 
     @classmethod
     def load(
@@ -95,6 +85,7 @@ class Audio(TimedFrames):
 
         cap = cv2.VideoCapture(str(path))
         fps = float(cap.get(cv2.CAP_PROP_FPS))
+        cap.release()
 
         audio = cls(frames=[] if frames is None else frames, fps=fps)
         audio.load_frames(path=path, chunk_size=chunk_size)
@@ -120,10 +111,35 @@ class Audio(TimedFrames):
     def moviepy(self) -> AudioArrayClip:
         return AudioArrayClip(self.array(), fps=self.fps)
 
-    def copy(self) -> Self:
-        """Creates a copy of the data."""
+    def audio_array(self) -> "AudioArray":
+        return AudioArray(fps=self.fps, frames=self.array())
 
-        return Audio(
-            frames=[frame.copy() for frame in self.frames],
-            fps=self.fps
-        )
+    def audio_list(self) -> "AudioList":
+        return AudioList(fps=self.fps, frames=list(self.data_copy()))
+
+
+@dataclass
+class AudioList(BaseAudio, TimedFramesList):
+    """A class to represent data of audio file or audio of video file."""
+
+
+@dataclass
+class AudioArray(BaseAudio, TimedFramesArray):
+    """A class to represent data of audio file or audio of video file."""
+
+
+def volume(audio: BaseAudio, factor: float | np.ndarray, deep: bool = False) -> Iterable[np.ndarray]:
+    if isinstance(factor, (int, float)):
+        f = factor
+        factor = (f for _ in range(len(audio)))
+
+    if deep:
+        factor = cycle(factor)
+
+    factor = iter(factor)
+
+    yield from action(
+        audio,
+        change_data=lambda frame: frame * next(factor),
+        deep=deep
+    )

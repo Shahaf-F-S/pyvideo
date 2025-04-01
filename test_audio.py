@@ -1,6 +1,6 @@
 # test.py
 
-from pyvideo import Audio
+from pyvideo import AudioArray, volume, speed
 
 SOURCE = "media/videos/input/milo.mp4"
 DESTINATION = "media/videos/output/milo.wav"
@@ -8,14 +8,12 @@ DESTINATION = "media/videos/output/milo.wav"
 def main() -> None:
     """A function to run the main test."""
 
-    audio = Audio.load(SOURCE)
+    audio = AudioArray.load(SOURCE).copy()
 
-    audio = (
-        audio.
-        copy().
-        volume(factor=5.5).
-        speed(factor=1.5)
-    )
+    for _ in volume(audio, factor=5.5):
+        pass
+
+    speed(audio, factor=1.5)
 
     audio.save(DESTINATION)
 
