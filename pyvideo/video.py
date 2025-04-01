@@ -3,26 +3,29 @@
 import os
 from typing import Generator, Iterable, Self
 from pathlib import Path
+from abc import ABCMeta
 from dataclasses import dataclass
 
 import numpy as np
 import cv2
 from moviepy import ImageSequenceClip
 
-from pyvideo.audio import Audio
-from pyvideo.action import TimedFrames
+from pyvideo.audio import BaseAudio
+from pyvideo.base import TimedFrames, TimedFramesList, TimedFramesArray
 
 
 __all__ = [
-    "Video"
+    "BaseVideo",
+    "VideoList",
+    "VideoArray"
 ]
 
 
 @dataclass
-class Video(TimedFrames):
+class BaseVideo(TimedFrames, metaclass=ABCMeta):
     """A class to contain video metadata."""
 
-    audio: Audio = None
+    audio: BaseAudio = None
 
     def __post_init__(self):
         if self.audio is not None:
@@ -66,7 +69,7 @@ class Video(TimedFrames):
 
         return self.width / self.height
 
-    def set_audio(self, audio: Audio) -> Self:
+    def set_audio(self, audio: BaseAudio) -> Self:
         if self.audio is not None:
             self.children.remove(self.audio)
 
@@ -82,6 +85,9 @@ class Video(TimedFrames):
 
         :return: The modified video object.
         """
+
+
+
 
         blob = cv2.dnn.blobFromImages(
             np.array(self.frames),
@@ -100,6 +106,9 @@ class Video(TimedFrames):
         :return: The modified video object.
         """
 
+
+
+
         self.frames[:] = np.array(self.frames).reshape((-1, *size, 3))
 
         return self
@@ -112,6 +121,9 @@ class Video(TimedFrames):
 
         :return: The modified video object.
         """
+
+
+
 
         size = (int(self.width * factor), int(self.height * factor))
 
@@ -130,6 +142,9 @@ class Video(TimedFrames):
 
         :return: The modified video object.
         """
+
+
+
 
         width = lower_right[0] - upper_left[0]
         height = lower_right[1] - upper_left[1]
@@ -170,6 +185,9 @@ class Video(TimedFrames):
         :return: The modified video object.
         """
 
+
+
+
         contrast = 1 if contrast is None else contrast
         brightness = 1 if brightness is None else brightness
 
@@ -177,19 +195,6 @@ class Video(TimedFrames):
         self.frames[:] = np.clip(
             np.array(self.frames) * contrast + beta, 0, 255
         ).astype(np.uint8)
-
-        return self
-
-    def volume(self, factor: float) -> Self:
-        """
-        Changes the volume of the audio.
-
-        :param factor: The change value.
-
-        :return: The changes audio object.
-        """
-
-        self.audio.volume(factor)
 
         return self
 
@@ -206,6 +211,9 @@ class Video(TimedFrames):
 
         :return: The modified video object.
         """
+
+
+
 
         if not (horizontally or vertically):
             return self
@@ -278,10 +286,8 @@ class Video(TimedFrames):
         :param step: The step for the frames.
         """
 
-        self.frames.extend(
-            self.read_frames(
-                path=path, start=start, end=end, step=step
-            )
+        self.set_frames(
+            list(self.read_frames(path=path, start=start, end=end, step=step))
         )
 
     def load_audio(
@@ -302,7 +308,10 @@ class Video(TimedFrames):
         :param chunk_size: The chunk size of each read.
         """
 
-        self.audio = Audio.load(path=path, chunk_size=chunk_size)
+
+
+
+        self.audio = BaseAudio.load(path=path, chunk_size=chunk_size)
 
         self.cut_child(self.audio, start=start, end=end, step=step)
 
@@ -311,7 +320,7 @@ class Video(TimedFrames):
         cls,
         path: str | Path,
         frames: Iterable[np.ndarray] = None,
-        audio: bool | Audio = True,
+        audio: bool | BaseAudio = True,
         chunk_size: int | None = 50000,
         start: int = None,
         end: int = None,
@@ -361,7 +370,7 @@ class Video(TimedFrames):
     def save(
         self,
         path: str | Path,
-        audio: bool | Audio = None
+        audio: bool | BaseAudio = None
     ) -> None:
         """
         Saves the video and audio into the file.
@@ -370,9 +379,9 @@ class Video(TimedFrames):
         :param audio: The value to save the audio.
         """
 
-        audio: Audio | bool
+        audio: BaseAudio | bool
 
-        if audio is None and isinstance(self.audio, Audio):
+        if audio is None and isinstance(self.audio, BaseAudio):
             audio = True
 
         path = str(path)
@@ -386,7 +395,7 @@ class Video(TimedFrames):
                     "data is loaded before attempting to save it."
                 )
 
-            audio: Audio = self.audio
+            audio: BaseAudio = self.audio
 
         video_clip.audio = audio.moviepy()
 
@@ -408,11 +417,12 @@ class Video(TimedFrames):
 
         self.save(path=path, audio=False)
 
-    def copy(self) -> Self:
-        """Creates a copy of the data."""
 
-        return Video(
-            frames=[frame.copy() for frame in self.frames],
-            audio=(self.audio.copy() if isinstance(self.audio, Audio) else None),
-            fps=self.fps
-        )
+@dataclass
+class VideoList(BaseVideo, TimedFramesList):
+    """A class to contain video metadata."""
+
+
+@dataclass
+class VideoArray(BaseVideo, TimedFramesArray):
+    """A class to contain video metadata."""
