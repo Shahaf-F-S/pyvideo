@@ -74,10 +74,17 @@ class TimedFrames(metaclass=ABCMeta):
 
         return self
 
-    def synchronize(self) -> Self:
+    def synchronize(self, deep: int | bool = True) -> Self:
+        if not deep:
+            return self
+
         for child in self.children:
-            child.fps = self.fps
-            child.synchronize()
+            deep = deep - 1 if deep is not True else deep
+
+            child.fps *= (child.duration / self.duration)
+            child.synchronize(deep=deep)
+
+        return self
 
     def time_frame(self) -> list[float]:
         """
@@ -107,7 +114,8 @@ class TimedFrames(metaclass=ABCMeta):
         self,
         start: int = None,
         end: int = None,
-        step: int = None
+        step: int = None,
+        deep: int | bool = True
     ) -> Self:
         """
         Cuts the video.
@@ -115,6 +123,7 @@ class TimedFrames(metaclass=ABCMeta):
         :param start: The starting index for the frames.
         :param end: The ending index for the frames.
         :param step: The step for the frames.
+        :param deep: The flag or level to perform the action on the children.
         :return: The modified video object.
         """
 
@@ -124,8 +133,11 @@ class TimedFrames(metaclass=ABCMeta):
 
         self.frames = self.frames[start:end:step]
 
-        for child in self.children:
-            self.cut_child(child)
+        if deep:
+            deep = deep - 1 if deep is not True else deep
+
+            for child in self.children:
+                self.cut_child(child, deep=deep)
 
         return self
 
@@ -134,7 +146,8 @@ class TimedFrames(metaclass=ABCMeta):
         child: "TimedFrames",
         start: int = None,
         end: int = None,
-        step: int = None
+        step: int = None,
+        deep: int | bool = True
     ) -> "TimedFrames":
         """
         Cuts the video.
@@ -143,6 +156,7 @@ class TimedFrames(metaclass=ABCMeta):
         :param start: The starting index for the frames.
         :param end: The ending index for the frames.
         :param step: The step for the frames.
+        :param deep: The flag or level to perform the action on the children.
         :return: The modified video object.
         """
         child_start = child.index(self.time(start))
@@ -156,7 +170,13 @@ class TimedFrames(metaclass=ABCMeta):
         if step is not None:
             child_step = int(step * (1 / self.fps) * child.fps)
 
-        return child.cut(start=child_start, end=child_end, step=child_step)
+        child.cut(start=child_start, end=child_end, step=child_step)
+
+        if deep:
+            for c in child.children:
+                child.cut_child(c, deep=deep)
+
+        return self
 
     def array(self) -> np.ndarray:
         return np.array(self.frames)
@@ -219,7 +239,6 @@ def action[T: TimedFrames](
     change_data: Callable[[np.ndarray], np.ndarray] = None,
     deep: int | bool = False
 ) -> Iterable[np.ndarray]:
-
     if change:
         obj = change(obj)
 

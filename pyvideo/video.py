@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 from moviepy import ImageSequenceClip
 
-from pyvideo.audio import BaseAudio
+from pyvideo.audio import BaseAudio, AudioArray, AudioList
 from pyvideo.base import TimedFrames, TimedFramesList, TimedFramesArray
 
 
@@ -308,10 +308,7 @@ class BaseVideo(TimedFrames, metaclass=ABCMeta):
         :param chunk_size: The chunk size of each read.
         """
 
-
-
-
-        self.audio = BaseAudio.load(path=path, chunk_size=chunk_size)
+        self.audio = self.audio_type().load(path=path, chunk_size=chunk_size)
 
         self.cut_child(self.audio, start=start, end=end, step=step)
 
@@ -417,12 +414,21 @@ class BaseVideo(TimedFrames, metaclass=ABCMeta):
 
         self.save(path=path, audio=False)
 
+    def audio_type(self) -> type[BaseAudio]:
+        return BaseAudio
+
 
 @dataclass
 class VideoList(BaseVideo, TimedFramesList):
     """A class to contain video metadata."""
 
+    def audio_type(self) -> type[AudioList]:
+        return AudioList
+
 
 @dataclass
 class VideoArray(BaseVideo, TimedFramesArray):
     """A class to contain video metadata."""
+
+    def audio_type(self) -> type[AudioArray]:
+        return AudioArray
