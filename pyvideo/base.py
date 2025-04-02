@@ -12,7 +12,8 @@ __all__ = [
     "TimedFramesList",
     "TimedFramesArray",
     "action",
-    "speed"
+    "speed",
+    "cut"
 ]
 
 
@@ -20,7 +21,7 @@ __all__ = [
 class TimedFrames(metaclass=ABCMeta):
 
     fps: float
-    frames: MutableSequence[np.ndarray] = field(default_factory=list)
+    frames: MutableSequence[np.ndarray] = field(default_factory=list, repr=False)
     resolution: int = 12
     children: list["TimedFrames"] = field(default_factory=list)
 
@@ -74,7 +75,7 @@ class TimedFrames(metaclass=ABCMeta):
 
         return self
 
-    def synchronize(self, deep: int | bool = True) -> Self:
+    def sync_duration(self, deep: int | bool = True) -> Self:
         if not deep:
             return self
 
@@ -82,7 +83,7 @@ class TimedFrames(metaclass=ABCMeta):
             deep = deep - 1 if deep is not True else deep
 
             child.fps *= (child.duration / self.duration)
-            child.synchronize(deep=deep)
+            child.sync_duration(deep=deep)
 
         return self
 
@@ -159,10 +160,15 @@ class TimedFrames(metaclass=ABCMeta):
         :param deep: The flag or level to perform the action on the children.
         :return: The modified video object.
         """
-        child_start = child.index(self.time(start))
 
+        child_start = None
         child_end = None
         child_step = None
+
+        end = end or self.length
+
+        if start is not None:
+            child_start = child.index(self.time(start))
 
         if end != self.length:
             child_end = child.index(self.time(end))
@@ -209,7 +215,7 @@ class TimedFrames(metaclass=ABCMeta):
 class TimedFramesList(TimedFrames):
     """A class to represent data of audio file or audio of video file."""
 
-    frames: list[np.ndarray] = field(default_factory=list)
+    frames: list[np.ndarray] = field(default_factory=list, repr=False)
 
     def copy_frames(self) -> list[np.ndarray]:
         return [frame.copy() for frame in self.frames]
@@ -221,7 +227,7 @@ class TimedFramesList(TimedFrames):
 @dataclass
 class TimedFramesArray(TimedFramesList):
 
-    frames: np.ndarray = field(default_factory=lambda: np.array([]))
+    frames: np.ndarray = field(default_factory=lambda: np.array([]), repr=False)
 
     def data(self) -> Iterable[np.ndarray]:
         yield self.frames
@@ -237,8 +243,12 @@ def action[T: TimedFrames](
     obj: T,
     change: Callable[[T], T] = None,
     change_data: Callable[[np.ndarray], np.ndarray] = None,
-    deep: int | bool = False
+    deep: int | bool = False,
+    base: type[T] = TimedFrames
 ) -> Iterable[np.ndarray]:
+    if not isinstance(obj, base):
+        return
+
     if change:
         obj = change(obj)
 
@@ -252,8 +262,22 @@ def action[T: TimedFrames](
         deep = deep - 1 if deep is not True else deep
 
         for child in obj.children:
-            yield from action(child, change_data=change_data, deep=deep)
+            yield from action(child, change_data=change_data, deep=deep, base=base)
 
 
-def speed[T: TimedFrames](obj: T, factor: float, deep: bool = True) -> T:
-    return obj.speed(factor, deep=deep)
+def speed[T: TimedFrames](obj: T, factor: float, deep: bool = True) -> Iterable:
+    yield
+
+    obj.speed(factor, deep=deep)
+
+
+def cut[T: TimedFrames](
+    obj: T,
+    start: int = None,
+    end: int = None,
+    step: int = None,
+    deep: bool = True
+) -> Iterable:
+    yield
+
+    obj.cut(start=start, end=end, step=step, deep=deep)

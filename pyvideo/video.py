@@ -11,13 +11,19 @@ import cv2
 from moviepy import ImageSequenceClip
 
 from pyvideo.audio import BaseAudio, AudioArray, AudioList
-from pyvideo.base import TimedFrames, TimedFramesList, TimedFramesArray
+from pyvideo.base import TimedFrames, TimedFramesList, TimedFramesArray, action
 
 
 __all__ = [
     "BaseVideo",
     "VideoList",
-    "VideoArray"
+    "VideoArray",
+    "resize",
+    "reshape",
+    "rescale",
+    "crop",
+    "color",
+    "flip"
 ]
 
 
@@ -70,165 +76,12 @@ class BaseVideo(TimedFrames, metaclass=ABCMeta):
         return self.width / self.height
 
     def set_audio(self, audio: BaseAudio) -> Self:
-        if self.audio is not None:
+        if (self.audio is not None) and (self.audio in self.children):
             self.children.remove(self.audio)
 
         self.audio = audio
 
         self.children.append(self.audio)
-
-    def resize(self, size: tuple[int, int]) -> Self:
-        """
-        Resizes the frames in the video.
-
-        :param size: The new size of the frames.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        blob = cv2.dnn.blobFromImages(
-            np.array(self.frames),
-            scalefactor=1.0, size=size, swapRB=False, crop=False
-        )
-        self.frames[:] = blob.transpose(0, 2, 3, 1)
-
-        return self
-
-    def reshape(self, size: tuple[int, int]) -> Self:
-        """
-        Resizes the frames in the video.
-
-        :param size: The new size of the frames.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        self.frames[:] = np.array(self.frames).reshape((-1, *size, 3))
-
-        return self
-
-    def rescale(self, factor: float) -> Self:
-        """
-        Resizes the frames in the video.
-
-        :param factor: The new size of the frames.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        size = (int(self.width * factor), int(self.height * factor))
-
-        return self.resize(size=size)
-
-    def crop(
-        self,
-        upper_left: tuple[int, int],
-        lower_right: tuple[int, int]
-    ) -> Self:
-        """
-        Crops the frames of the video.
-
-        :param upper_left: The index of the upper left corner.
-        :param lower_right: The index of the lower right corner.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        width = lower_right[0] - upper_left[0]
-        height = lower_right[1] - upper_left[1]
-
-        if self.frames:
-            if (
-                (width > self.width) or
-                (height > self.height) or
-                not (0 <= lower_right[0] <= self.width)
-                or not (0 <= upper_left[1] <= self.height)
-            ):
-                raise ValueError(
-                    f"Combination of upper left corner: {upper_left} "
-                    f"and lowe right corner: {lower_right} is invalid "
-                    f"for frames of shape: {self.size}"
-                )
-
-            self.frames[:] = [
-                frame[
-                    upper_left[1]:lower_right[1],
-                    upper_left[0]:lower_right[0]
-                ] for frame in self.frames
-            ]
-
-        return self
-
-    def color(
-        self,
-        contrast: float = None,
-        brightness: float = None
-    ) -> Self:
-        """
-        Edits the color of the frames.
-
-        :param contrast: The contrast factor.
-        :param brightness: The brightness factor.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        contrast = 1 if contrast is None else contrast
-        brightness = 1 if brightness is None else brightness
-
-        beta = int((brightness - 1) * 100)
-        self.frames[:] = np.clip(
-            np.array(self.frames) * contrast + beta, 0, 255
-        ).astype(np.uint8)
-
-        return self
-
-    def flip(
-        self,
-        vertically: bool = None,
-        horizontally: bool = None
-    ) -> Self:
-        """
-        Flips the frames.
-
-        :param vertically: The value to flip the frames vertically.
-        :param horizontally: The value to flip the frames horizontally.
-
-        :return: The modified video object.
-        """
-
-
-
-
-        if not (horizontally or vertically):
-            return self
-
-        frames = np.array(self.frames)
-
-        if vertically:
-            frames = frames[:, ::-1, :, :]
-
-        if horizontally:
-            frames = frames[:, :, ::-1, :]
-
-        self.frames[:] = frames
-
-        return self
 
     def read_frames(
         self,
@@ -308,9 +161,9 @@ class BaseVideo(TimedFrames, metaclass=ABCMeta):
         :param chunk_size: The chunk size of each read.
         """
 
-        self.audio = self.audio_type().load(path=path, chunk_size=chunk_size)
-
-        self.cut_child(self.audio, start=start, end=end, step=step)
+        audio = self.audio_type().load(path=path, chunk_size=chunk_size)
+        self.cut_child(audio, start=start, end=end, step=step)
+        self.set_audio(audio)
 
     @classmethod
     def load(
@@ -383,7 +236,7 @@ class BaseVideo(TimedFrames, metaclass=ABCMeta):
 
         path = str(path)
 
-        video_clip = ImageSequenceClip(self.frames, fps=self.fps)
+        video_clip = ImageSequenceClip(self.list(), fps=self.fps)
 
         if audio is True:
             if self.audio is None:
@@ -432,3 +285,182 @@ class VideoArray(BaseVideo, TimedFramesArray):
 
     def audio_type(self) -> type[AudioArray]:
         return AudioArray
+
+
+def resize[T: BaseVideo](
+    video: T, size: tuple[int, int], deep: int | bool = True
+) -> Iterable[None | np.ndarray]:
+    yield
+
+    if isinstance(video, VideoArray):
+        blob = cv2.dnn.blobFromImages(
+            np.array(video.frames),
+            scalefactor=1.0, size=size, swapRB=False, crop=False
+        )
+        frames = blob.transpose(0, 2, 3, 1)
+        video.frames = frames
+
+        yield frames
+
+    else:
+        for i, frame in enumerate(video.frames):
+            frame = cv2.resize(frame, size)
+            yield frame
+            video.frames[i] = frame
+
+    if deep:
+        deep = deep - 1 if deep is not True else deep
+
+        for child in video.children:
+            if not isinstance(child, BaseVideo):
+                continue
+
+            yield from resize(child, size=size, deep=deep)
+
+
+def reshape[T: BaseVideo](
+    video: T, size: tuple[int, int], deep: int | bool = True
+) -> Iterable[None | np.ndarray]:
+    yield
+
+    if isinstance(video, VideoArray):
+        frames = video.frames.reshape(-1, *size, 3)
+        video.frames[:] = frames
+
+        yield frames
+
+    else:
+        for i, frame in enumerate(video.frames):
+            frame = frame.reshape(*size, 3)
+            yield frame
+            video.frames[i] = frame
+
+    if deep:
+        deep = deep - 1 if deep is not True else deep
+
+        for child in video.children:
+            if not isinstance(child, BaseVideo):
+                continue
+
+            yield from reshape(child, size=size, deep=deep)
+
+
+def rescale[T: BaseVideo](
+    video: T, factor: float | tuple[float, float], deep: int | bool = True
+) -> Iterable[None | np.ndarray]:
+    yield
+
+    if not isinstance(factor, tuple):
+        f = factor
+        factor = (f, f)
+
+    factor1, factor2 = factor
+
+    # noinspection PyTypeChecker
+    size = (int(video.width * factor1), int(video.height * factor2))
+
+    yield from resize(video, size=size, deep=deep)
+
+
+def crop[T: BaseVideo](
+    video: T,
+    upper_left: tuple[int, int],
+    lower_right: tuple[int, int],
+    deep: int | bool = True
+) -> Iterable[None | np.ndarray]:
+    yield
+
+    width = lower_right[0] - upper_left[0]
+    height = lower_right[1] - upper_left[1]
+
+    if len(video.frames) == 0:
+        # noinspection PyTypeChecker
+        if (
+            (width > video.width) or
+            (height > video.height) or
+            not (0 <= lower_right[0] <= video.width)
+            or not (0 <= upper_left[1] <= video.height)
+        ):
+            raise ValueError(
+                f"Combination of upper left corner: {upper_left} "
+                f"and lowe right corner: {lower_right} is invalid "
+                f"for frames of shape: {video.size}"
+            )
+
+    if isinstance(video, VideoArray):
+        # noinspection PyTypeChecker
+        frames: np.ndarray = video.frames[
+            :,
+            upper_left[1]:lower_right[1],
+            upper_left[0]:lower_right[0]
+        ]
+
+        yield frames
+
+        video.frames = frames
+
+    else:
+        for i, frame in enumerate(video.frames):
+            frame = frame[
+                upper_left[1]:lower_right[1],
+                upper_left[0]:lower_right[0]
+            ]
+            yield frame
+            video.frames[i] = frame
+
+    if deep:
+        deep = deep - 1 if deep is not True else deep
+
+        for child in video.children:
+            if not isinstance(child, BaseVideo):
+                continue
+
+            yield from crop(
+                child,
+                upper_left=upper_left,
+                lower_right=lower_right,
+                deep=deep
+            )
+
+
+def color[T: BaseVideo](
+    video: T,
+    contrast: float = None,
+    brightness: float = None,
+    deep: int | bool = True
+) -> Iterable[np.ndarray]:
+    contrast = 1 if contrast is None else contrast
+    brightness = 1 if brightness is None else brightness
+    beta = int((brightness - 1) * 100)
+
+    def change(d: np.ndarray) -> np.ndarray:
+        return np.clip(d * contrast + beta, 0, 255).astype(np.uint8)
+
+    yield from action(video, change_data=change, deep=deep, base=BaseVideo)
+
+
+def flip[T: BaseVideo](
+    video: T,
+    vertically: bool = None,
+    horizontally: bool = None,
+    deep: int | bool = True
+) -> Iterable[np.ndarray]:
+
+    def change(d: np.ndarray) -> np.ndarray:
+        if len(d.shape) > 3:
+            if vertically:
+                d = d[:, ::-1, :, :]
+
+            if horizontally:
+                d = d[:, :, ::-1, :]
+
+        else:
+            if vertically:
+                d = d[::-1, :, :]
+
+            if horizontally:
+                d = d[:, ::-1, :]
+
+        return d
+
+    yield from action(video, change_data=change, deep=deep, base=BaseVideo)
