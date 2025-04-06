@@ -128,17 +128,13 @@ class TimedFrames(metaclass=ABCMeta):
         :return: The modified video object.
         """
 
-        start = start or 0
-        end = end or self.length
-        step = step or 1
-
-        self.frames = self.frames[start:end:step]
+        self.frames = self.frames[start or 0:end or self.length:step or 1]
 
         if deep:
             deep = deep - 1 if deep is not True else deep
 
             for child in self.children:
-                self.cut_child(child, deep=deep)
+                self.cut_child(child, start=start, end=end, step=step, deep=deep)
 
         return self
 
