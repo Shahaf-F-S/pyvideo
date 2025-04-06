@@ -4,7 +4,7 @@ from pyvideo import VideoArray, speed, volume, cut, crop, rescale, color, flip
 
 
 SOURCE = "media/videos/input/milo.mp4"
-DESTINATION = "media/videos/output/milo1.mp4"
+DESTINATION = "media/videos/output/milo.mp4"
 
 
 def main() -> None:
